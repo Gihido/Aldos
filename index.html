@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aldos RPG Web</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <div id="app">
+    <header class="hero">
+      <p class="eyebrow">Aldos Chronicles</p>
+      <h1>⚔️ Aldos RPG — Web Edition</h1>
+      <p class="subtitle">Сделано как браузерная RPG: атмосферный интерфейс, бой, лут и прокачка.</p>
+    </header>
+
+    <section id="authCard" class="card auth-card">
+      <h2>Врата в мир Альдоса</h2>
+      <p class="hint">Создай героя или войди в существующий аккаунт.</p>
+      <div class="grid2">
+        <input id="username" placeholder="Логин" />
+        <input id="password" type="password" placeholder="Пароль" />
+      </div>
+      <div class="grid2">
+        <select id="classSelect">
+          <option>Воин</option>
+          <option>Маг</option>
+          <option>Разбойник</option>
+        </select>
+        <select id="genderSelect">
+          <option>Мужчина</option>
+          <option>Женщина</option>
+        </select>
+      </div>
+      <div class="actions">
+        <button id="loginBtn" class="btn gold">Войти</button>
+        <button id="registerBtn" class="btn secondary">Регистрация</button>
+      </div>
+      <p class="hint">Админ-логины: <code>admin</code> и <code>gihido</code>.</p>
+    </section>
+
+    <section id="gameUI" class="hidden">
+      <div class="hud card">
+        <div class="hud-main">
+          <div class="avatar">🧙</div>
+          <div>
+            <div id="playerLine" class="player-line"></div>
+            <div class="chips">
+              <span id="classChip" class="chip"></span>
+              <span id="locationChip" class="chip"></span>
+              <span id="levelChip" class="chip"></span>
+            </div>
+          </div>
+        </div>
+        <div class="bars">
+          <div class="bar-row"><span>HP</span><div class="bar"><div id="hpFill" class="bar-fill hp"></div></div><b id="hpText"></b></div>
+          <div class="bar-row"><span>MP</span><div class="bar"><div id="mpFill" class="bar-fill mp"></div></div><b id="mpText"></b></div>
+          <div class="bar-row"><span>EXP</span><div class="bar"><div id="expFill" class="bar-fill exp"></div></div><b id="expText"></b></div>
+        </div>
+        <div class="actions">
+          <button id="saveBtn" class="btn">💾 Сохранить</button>
+          <button id="logoutBtn" class="btn secondary">Выход</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <article class="card panel-loc">
+          <h2 id="locationTitle"></h2>
+          <p id="locationDescr"></p>
+          <div id="sceneArt" class="scene-art">🌌</div>
+          <div id="locationButtons" class="actions wrap"></div>
+        </article>
+
+        <article class="card panel-bag">
+          <h3>🎒 Инвентарь</h3>
+          <ul id="inventoryList"></ul>
+          <h3>🪙 Лут в локации</h3>
+          <ul id="lootList"></ul>
+          <button id="pickupBtn" class="btn gold">Подобрать всё</button>
+        </article>
+
+        <article class="card panel-fight">
+          <h3>👹 Боевая сцена</h3>
+          <div id="monsterBox" class="monster-box"></div>
+          <div class="actions wrap">
+            <button id="attackBtn" class="btn danger">Атака</button>
+            <button id="defendBtn" class="btn">Защита</button>
+            <select id="abilitySelect"></select>
+            <button id="abilityBtn" class="btn magic">Применить умение</button>
+          </div>
+        </article>
+      </div>
+
+      <section id="adminPanel" class="card hidden">
+        <h3>🛡️ Админ-панель</h3>
+        <div class="grid2">
+          <select id="adminPlayerSelect"></select>
+          <input id="banReason" placeholder="Причина блокировки" />
+        </div>
+        <div class="actions wrap">
+          <button id="banBtn" class="btn danger">Заблокировать</button>
+          <button id="unbanBtn" class="btn secondary">Разблокировать</button>
+          <button id="deletePlayerBtn" class="btn dark">Удалить игрока</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>📜 Хроника событий</h3>
+        <ul id="eventLog"></ul>
+      </section>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
