@@ -1,0 +1,123 @@
+:root {
+  --bg: #080b13;
+  --panel: #111726;
+  --line: #2f3f60;
+  --text: #eaf0ff;
+  --muted: #9db0cc;
+  --gold: #dfb96b;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: radial-gradient(circle at 20% -10%, #1a2742, #080b13 50%);
+  min-height: 100vh;
+}
+
+.bg-orb { position: fixed; border-radius: 50%; filter: blur(60px); z-index: -1; opacity: .35; }
+.orb-1 { width: 260px; height: 260px; background: #6f56ff; top: -60px; left: -30px; }
+.orb-2 { width: 340px; height: 340px; background: #0086a5; right: -90px; bottom: -60px; }
+
+#app { max-width: 1180px; margin: 0 auto; padding: 20px; }
+.hero { text-align: center; margin-bottom: 16px; }
+.eyebrow { margin: 0; color: var(--gold); letter-spacing: .15em; text-transform: uppercase; font-size: 12px; }
+.subtitle { color: var(--muted); margin-top: 8px; }
+
+.card {
+  background: linear-gradient(180deg, #141d2f 0%, #101624 100%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .35);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.hidden { display: none; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.layout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.actions { display: flex; align-items: center; gap: 8px; }
+.wrap { flex-wrap: wrap; }
+
+input, select {
+  width: 100%;
+  border: 1px solid #395179;
+  background: #0a1322;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #f2f7ff;
+  background: linear-gradient(180deg, #3f67d3, #294caa);
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn.secondary { background: linear-gradient(180deg, #5d6f92, #44546f); }
+.btn.gold { background: linear-gradient(180deg, #e3c27a, #b78834); color: #2f1f04; }
+.btn.danger { background: linear-gradient(180deg, #d05365, #9b2237); }
+.btn.magic { background: linear-gradient(180deg, #8a57f5, #5e2ed5); }
+.btn.dark { background: linear-gradient(180deg, #3a3b45, #23242c); }
+
+.hud { display: grid; grid-template-columns: 2fr 2fr auto; gap: 14px; align-items: center; }
+.hud-main { display: flex; gap: 10px; align-items: center; }
+.avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: radial-gradient(circle, #253860, #10192e);
+  border: 1px solid #47639f;
+  font-size: 28px;
+}
+.player-line { font-weight: 700; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid #43608d; color: #c9d9f3; }
+
+.bars { display: grid; gap: 8px; }
+.bar-row { display: grid; grid-template-columns: 34px 1fr 80px; align-items: center; gap: 8px; font-size: 12px; }
+.bar { height: 10px; border-radius: 999px; background: #081120; overflow: hidden; border: 1px solid #31486e; }
+.bar-fill { height: 100%; width: 0%; transition: width .2s ease; }
+.bar-fill.hp { background: linear-gradient(90deg, #ff667f, #cf1f4c); }
+.bar-fill.mp { background: linear-gradient(90deg, #6cd6ff, #3387ff); }
+.bar-fill.exp { background: linear-gradient(90deg, #ffd86f, #d49c24); }
+
+.scene-art {
+  margin: 10px 0;
+  font-size: 42px;
+  text-align: center;
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(130deg, #0b1d32, #1d2e52);
+  border: 1px solid #36517f;
+}
+
+.monster-box {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #4d426c;
+  background: linear-gradient(130deg, #211833, #111626);
+}
+
+#eventLog {
+  max-height: 260px;
+  overflow: auto;
+  padding-left: 18px;
+}
+#eventLog li { margin-bottom: 4px; color: #c4d5f1; }
+.hint { color: var(--muted); font-size: 14px; }
+
+@media (max-width: 980px) {
+  .hud { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; }
+}
