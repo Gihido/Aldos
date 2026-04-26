@@ -1,0 +1,6 @@
+{
+  "appId": "com.shadowkingdom.game",
+  "appName": "Тени Старого Королевства",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
