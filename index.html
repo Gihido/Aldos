@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Тени Старого Королевства</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="toastStack" class="toast-stack"></div>
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+  <aside id="drawer" class="drawer">
+    <h3>Разделы</h3>
+    <button class="drawer-item active" data-section="location">Локация</button>
+    <button class="drawer-item" data-section="character">Персонаж</button>
+    <button class="drawer-item" data-section="inventory">Инвентарь</button>
+    <button class="drawer-item" data-section="merchant">Торговец</button>
+    <button class="drawer-item" data-section="chat">Чат</button>
+    <button class="drawer-item" data-section="friends">Друзья</button>
+    <button class="drawer-item" data-section="clan">Клан</button>
+    <button class="drawer-item" data-section="online">Онлайн</button>
+    <button class="drawer-item" data-section="activeBattles">Активные бои</button>
+    <button class="drawer-item" data-section="leaderboard">Рейтинг</button>
+    <button class="drawer-item" data-section="settings">Настройки</button>
+  </aside>
+
+  <section id="loadingScreen" class="screen active center">
+    <h1>🌑 Тени Старого Королевства</h1>
+    <p>Загрузка мира...</p>
+  </section>
+
+  <section id="menuScreen" class="screen center">
+    <div class="card">
+      <h2>Главное меню</h2>
+      <button id="continueBtn" class="btn gold">Продолжить</button>
+      <button id="newGameBtn" class="btn primary">Новая игра</button>
+    </div>
+  </section>
+
+  <section id="authScreen" class="screen center">
+    <div class="card">
+      <h2>Вход / Регистрация</h2>
+      <input id="authLogin" placeholder="Логин" />
+      <input id="authPassword" type="password" placeholder="Пароль" />
+      <div class="row">
+        <button id="registerBtn" class="btn secondary">Регистрация</button>
+        <button id="loginBtn" class="btn gold">Войти</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="createScreen" class="screen create-screen">
+    <div class="create-card">
+      <h2>Создание персонажа</h2>
+      <input id="createName" placeholder="Имя героя" maxlength="18" />
+      <div id="classCards" class="class-cards"></div>
+      <button id="createPlayerBtn" class="btn gold">Создать героя</button>
+    </div>
+  </section>
+
+  <section id="gameScreen" class="screen game-screen">
+    <header class="top-header card">
+      <button id="openDrawerBtn" class="menu-btn">☰</button>
+      <div>
+        <h3 id="headerNick">—</h3>
+        <p id="headerClass">—</p>
+      </div>
+      <strong id="headerGold">🪙 0</strong>
+      <div class="bars">
+        <div><span>HP <small id="hpBarText">0/0</small></span><div class="bar hp"><i id="hpBarFill"></i></div></div>
+        <div><span>Энергия <small id="energyBarText">0/0</small></span><div class="bar energy"><i id="energyBarFill"></i></div></div>
+        <div><span>XP <small id="xpBarText">0/0</small></span><div class="bar xp"><i id="xpBarFill"></i></div></div>
+      </div>
+    </header>
+
+    <main class="content card">
+      <section id="locationSection" class="section active">
+        <h3 id="locationTitle">Локация</h3>
+        <p id="locationDesc"></p>
+        <p id="merchantInfo"></p>
+        <div class="row wrap">
+          <button id="startAdventureBtn" class="btn primary">Искать приключение</button>
+          <button id="openChestBtn" class="btn gold">Открыть сундук</button>
+        </div>
+        <div id="locationCards" class="list-grid"></div>
+        <h4>Игроки в локации</h4>
+        <ul id="locationPlayers" class="list"></ul>
+      </section>
+
+      <section id="characterSection" class="section">
+        <h3>Персонаж</h3>
+        <p id="characterInfo"></p>
+        <ul id="characterStats" class="list"></ul>
+      </section>
+
+      <section id="inventorySection" class="section">
+        <h3>Инвентарь</h3>
+        <div class="row wrap">
+          <button class="btn secondary active" data-inv-filter="all">Все</button>
+          <button class="btn secondary" data-inv-filter="weapon">Оружие</button>
+          <button class="btn secondary" data-inv-filter="armor">Броня</button>
+          <button class="btn secondary" data-inv-filter="potion">Зелья</button>
+          <button class="btn secondary" data-inv-filter="rare">Редкое</button>
+        </div>
+        <div id="inventoryEmpty" class="empty hidden">Инвентарь пуст.</div>
+        <div id="inventoryList" class="list-grid"></div>
+      </section>
+
+      <section id="merchantSection" class="section">
+        <h3>Торговец</h3>
+        <p id="shopHint"></p>
+        <div class="row wrap">
+          <button class="btn secondary" data-shop-filter="all">Всё</button>
+          <button class="btn secondary" data-shop-filter="weapon">Оружие</button>
+          <button class="btn secondary" data-shop-filter="armor">Броня</button>
+          <button class="btn secondary" data-shop-filter="potion">Зелья</button>
+        </div>
+        <div id="shopList" class="list-grid"></div>
+        <h4>Продажа из инвентаря</h4>
+        <div id="shopSellList" class="list-grid"></div>
+      </section>
+
+      <section id="chatSection" class="section">
+        <h3>Чат</h3>
+        <div class="row wrap">
+          <button class="btn secondary active" data-chat-channel="global">Общий</button>
+          <button class="btn secondary" data-chat-channel="location">Локация</button>
+          <button class="btn secondary" data-chat-channel="friends">Друзья</button>
+          <button class="btn secondary" data-chat-channel="clan">Клан</button>
+        </div>
+        <div id="chatMessages" class="chat-box"></div>
+        <div class="chat-input-row"><input id="chatInput" placeholder="Сообщение" /><button id="sendChatBtn" class="btn gold">Отправить</button></div>
+      </section>
+
+      <section id="friendsSection" class="section">
+        <h3>Друзья</h3>
+        <p>Мой friendCode: <strong id="myFriendCode">—</strong> <button id="copyFriendCodeBtn" class="btn secondary small">Копировать</button></p>
+        <div class="row"><input id="friendCodeInput" placeholder="Введите код друга" /><button id="addFriendBtn" class="btn gold">Добавить</button></div>
+        <h4>Входящие заявки</h4><ul id="incomingRequests" class="list"></ul>
+        <h4>Исходящие заявки</h4><ul id="outgoingRequests" class="list"></ul>
+        <h4>Друзья</h4><ul id="friendsList" class="list"></ul>
+      </section>
+
+      <section id="clanSection" class="section">
+        <h3>Клан</h3>
+        <div class="row wrap">
+          <input id="clanCreateName" placeholder="Название" />
+          <input id="clanCreateTag" placeholder="Тег" />
+          <input id="clanCreateDesc" placeholder="Описание" />
+          <button id="createClanBtn" class="btn gold">Создать</button>
+        </div>
+        <div class="row">
+          <input id="clanInviteInput" placeholder="Имя или friendCode" />
+          <button id="inviteClanBtn" class="btn secondary">Пригласить</button>
+          <button id="acceptClanInviteBtn" class="btn secondary hidden">Принять приглашение</button>
+          <button id="leaveClanBtn" class="btn danger">Выйти</button>
+        </div>
+        <div id="clanRoot"></div>
+        <div class="chat-input-row"><input id="clanMessageInput" placeholder="Сообщение клану" /><button id="sendClanMsgBtn" class="btn gold">Отправить</button></div>
+      </section>
+
+      <section id="onlineSection" class="section">
+        <h3>Онлайн</h3>
+        <ul id="onlineList" class="list"></ul>
+      </section>
+
+      <section id="activeBattlesSection" class="section">
+        <h3>Активные бои</h3>
+        <ul id="activeBattlesList" class="list"></ul>
+        <div id="battlePanel" class="battle-panel"></div>
+      </section>
+
+      <section id="leaderboardSection" class="section">
+        <h3>Рейтинг</h3>
+        <div class="row wrap">
+          <button class="btn secondary" data-rating="level">Уровень</button>
+          <button class="btn secondary" data-rating="gold">Золото</button>
+          <button class="btn secondary" data-rating="wins">Победы</button>
+        </div>
+        <ul id="leaderboardList" class="list"></ul>
+      </section>
+
+      <section id="settingsSection" class="section">
+        <h3>Настройки</h3>
+        <p>Ник: <strong id="settingsNick">—</strong></p>
+        <p>FriendCode: <strong id="settingsFriendCode">—</strong></p>
+        <label>Анимации <input id="settingsAnim" type="checkbox" checked /></label>
+        <label>Размер текста <input id="settingsTextScale" type="range" min="85" max="130" value="100" /></label>
+        <p>Версия: 1.4.0-local</p>
+        <div class="row wrap">
+          <button id="resetSaveBtn" class="btn danger">Сброс сохранения</button>
+          <button id="exportSaveBtn" class="btn secondary">Экспорт</button>
+          <button id="importSaveBtn" class="btn secondary">Импорт</button>
+        </div>
+        <textarea id="saveDataBox" placeholder="JSON сохранения"></textarea>
+      </section>
+    </main>
+  </section>
+
+  <div id="globalModal" class="modal">
+    <div class="modal-card card">
+      <h3 id="modalTitle">Окно</h3>
+      <div id="modalBody"></div>
+      <div id="modalButtons" class="row wrap"></div>
+      <button class="btn secondary" onclick="UIManager.closeModal()">Закрыть</button>
+    </div>
+  </div>
+
+  <script src="./js/gameData.js"></script>
+  <script src="./js/firebase-config.js"></script>
+  <script src="./js/localServer.js"></script>
+  <script src="./js/ui.js"></script>
+  <script src="./js/player.js"></script>
+  <script src="./js/inventory.js"></script>
+  <script src="./js/locations.js"></script>
+  <script src="./js/combat.js"></script>
+  <script src="./js/chest.js"></script>
+  <script src="./js/shop.js"></script>
+  <script src="./js/chat.js"></script>
+  <script src="./js/friends.js"></script>
+  <script src="./js/clans.js"></script>
+  <script src="./js/online.js"></script>
+  <script src="./js/leaderboard.js"></script>
+  <script src="./js/settings.js"></script>
+  <script src="./js/main.js"></script>
+</body>
+</html>
