@@ -1,75 +1,91 @@
 window.ChestModule = (() => {
-  const KEY = 'sok_chests_v2';
+  const KEY = 'sok_chests_v3';
 
-  function readState() {
-    try {
-      const data = JSON.parse(localStorage.getItem(KEY) || '{}');
-      return typeof data === 'object' && data ? data : {};
-    } catch {
-      return {};
-    }
+  function read() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
   }
-
-  function saveState(state) {
-    localStorage.setItem(KEY, JSON.stringify(state));
-  }
+  function write(v) { localStorage.setItem(KEY, JSON.stringify(v)); }
 
   function hasChest(locationId) {
-    const state = readState();
-    return !!state[locationId] && !state[locationId].opened;
+    const db = read();
+    return !!db[`loc_${locationId}`] && !db[`loc_${locationId}`].opened;
   }
 
-  function markChestFound(locationId) {
-    const state = readState();
-    if (state[locationId]?.opened === false) return;
-    state[locationId] = { opened: false, foundAt: Date.now() };
-    saveState(state);
-    UIManager.showToast('Найден сундук!', 'loot');
-    LocationsModule.renderLocationsScreen();
+  function generateChest(locationId) {
+    const db = read();
+    const key = `loc_${locationId}`;
+    if (db[key] && !db[key].opened) return db[key];
+    const roll = Math.random();
+    const type = roll < 0.62 ? 'common' : roll < 0.84 ? 'rare' : 'epic';
+    db[key] = { chestId: key, type, locationId, opened: false, createdAt: Date.now() };
+    write(db);
+    return db[key];
   }
 
-  function openChest(locationId) {
-    const state = readState();
-    const entry = state[locationId];
-    if (!entry || entry.opened) {
-      UIManager.showToast('Этот сундук уже открыт.', 'warning');
+  function rollChestReward(type) {
+    const table = GameData.CHESTS[type] || GameData.CHESTS.common;
+    const gold = rand(table.gold[0], table.gold[1]);
+    const itemId = table.items[Math.floor(Math.random() * table.items.length)];
+    return { gold, itemId, type, curse: type === 'cursed' && Math.random() <= (table.curseChance || 0) };
+  }
+
+  function openChest(chestId) {
+    const db = read();
+    const chest = db[chestId];
+    if (!chest || chest.opened) return UIManager.showToast('Сундук уже открыт.', 'warning');
+
+    const reward = rollChestReward(chest.type);
+    chest.opened = true;
+    chest.openedAt = Date.now();
+    db[chestId] = chest;
+    write(db);
+
+    if (reward.curse) {
+      UIManager.showToast('Проклятый сундук пробуждает монстра!', 'error');
+      CombatModule.startCombat(PlayerModule.getPlayer().locationId);
       return;
     }
 
-    const tier = Math.random() <= 0.32 ? 'rare' : 'common';
-    const table = GameData.CHESTS[tier];
-    const gold = rand(table.gold[0], table.gold[1]);
-
-    PlayerModule.changeGold(gold);
-
-    const drops = [];
-    table.itemDrops.forEach((drop) => {
-      if (Math.random() <= drop.chance && InventoryModule.addItem(drop.itemId)) {
-        drops.push(GameData.ITEMS[drop.itemId].name);
-      }
-    });
-
-    entry.opened = true;
-    entry.openedAt = Date.now();
-    saveState(state);
-
-    UIManager.qs('chestLootText').textContent = drops.length ? `+${gold} 🪙 и ${drops.join(', ')}` : `+${gold} 🪙`;
-    UIManager.openModal('chestModal');
+    PlayerModule.changeGold(reward.gold);
+    InventoryModule.addItem(reward.itemId);
+    PlayerModule.autosave();
+    UIManager.showLootPopup({ gold: reward.gold, exp: 0, items: [GameData.ITEMS[reward.itemId]?.name || reward.itemId] });
     UIManager.showToast('Сундук открыт!', 'loot');
-    UIManager.pushEvent(`Сундук (${tier}) открыт.`);
-
-    PlayerModule.renderTopPanel();
     LocationsModule.renderLocationsScreen();
-    InventoryModule.renderInventory();
   }
 
-  function bind() {
-    UIManager.qs('closeChestModal')?.addEventListener('click', () => UIManager.closeModal('chestModal'));
+  function openDailyChest() {
+    const p = PlayerModule.getPlayer();
+    const now = Date.now();
+    if (now - (p.lastDailyChestAt || 0) < 24 * 60 * 60 * 1000) {
+      return UIManager.showToast('Ежедневный сундук уже открыт сегодня.', 'warning');
+    }
+
+    const reward = rollChestReward('daily');
+    p.lastDailyChestAt = now;
+    PlayerModule.changeGold(reward.gold);
+    InventoryModule.addItem(reward.itemId);
+    PlayerModule.autosave();
+    UIManager.showLootPopup({ gold: reward.gold, exp: 0, items: [GameData.ITEMS[reward.itemId]?.name || reward.itemId] });
+  }
+
+  function openClanChest() {
+    const p = PlayerModule.getPlayer();
+    if (!p.clanId) return UIManager.showToast('Клановый сундук доступен только клану.', 'warning');
+    const reward = rollChestReward('clan');
+    PlayerModule.changeGold(reward.gold);
+    InventoryModule.addItem(reward.itemId);
+    PlayerModule.autosave();
+    UIManager.showLootPopup({ gold: reward.gold, exp: 0, items: [GameData.ITEMS[reward.itemId]?.name || reward.itemId] });
+  }
+
+  function markChestFound(locationId) {
+    generateChest(locationId);
   }
 
   function rand(a, b) {
     return Math.floor(Math.random() * (b - a + 1)) + a;
   }
 
-  return { bind, hasChest, markChestFound, openChest };
+  return { generateChest, openChest, openDailyChest, openClanChest, rollChestReward, hasChest, markChestFound };
 })();

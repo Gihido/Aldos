@@ -1,68 +1,38 @@
 window.ShopModule = (() => {
-  function getAvailableItems() {
+  function allowed(item) {
     const p = PlayerModule.getPlayer();
-    return GameData.MERCHANT_ITEMS
-      .map((id) => GameData.ITEMS[id])
-      .filter(Boolean)
-      .filter((item) => {
-        if (item.rarity === 'legendary') return p.level >= 7;
-        if (item.rarity === 'epic') return p.level >= 4;
-        if (item.rarity === 'rare') return p.level >= 2;
-        return true;
-      });
+    if (item.rarity === 'mythic') return p.level >= 10;
+    if (item.rarity === 'legendary') return p.level >= 8;
+    if (item.rarity === 'epic') return p.level >= 5;
+    if (item.rarity === 'rare') return p.level >= 3;
+    return true;
   }
 
   function buy(itemId) {
     const item = GameData.ITEMS[itemId];
     if (!item) return;
-
-    if (!PlayerModule.spendGold(item.price)) {
-      UIManager.showToast('Недостаточно золота.', 'error');
-      return;
-    }
-
+    if (!PlayerModule.spendGold(item.price || 0)) return UIManager.showToast('Недостаточно золота.', 'error');
     InventoryModule.addItem(item.id);
     PlayerModule.renderTopPanel();
     renderShop();
-    UIManager.pushEvent(`Покупка: ${item.name}`);
-    UIManager.showToast(`Куплено: ${item.name}`, 'success');
-  }
-
-  function sell(index) {
-    InventoryModule.renderInventory();
-    // Продажа реализована в инвентаре, тут только подсказка.
-    UIManager.showToast('Для продажи используйте кнопку "Продать" в инвентаре.', 'info');
   }
 
   function renderShop() {
-    const list = UIManager.qs('shopItems');
-    if (!list) return;
-    list.innerHTML = '';
+    const box = UIManager.qs('shopItems');
+    if (!box) return;
+    box.innerHTML = '';
 
-    const player = PlayerModule.getPlayer();
-    const loc = LocationsModule.getCurrentLocation();
-    UIManager.safeSetText('shopHint', loc?.hasMerchant ? 'Торговец готов к сделке.' : 'В этой локации нет торговца.');
+    const hasMerchant = LocationsModule.getCurrentLocation()?.hasMerchant;
+    UIManager.safeSetText('shopHint', hasMerchant ? 'Торговец открыт.' : 'Торговец недоступен в этой локации.');
 
-    getAvailableItems().forEach((item) => {
-      const canBuy = player.gold >= item.price && !!loc?.hasMerchant;
+    GameData.MERCHANT_ITEMS.map((id) => GameData.ITEMS[id]).filter(Boolean).forEach((item) => {
+      const can = hasMerchant && allowed(item) && PlayerModule.getPlayer().gold >= (item.price || 0);
       const card = document.createElement('article');
       card.className = 'shop-card';
-      card.innerHTML = `
-        <div class="shop-top">
-          <h4>${item.icon} ${item.name}</h4>
-          <strong>${item.price} 🪙</strong>
-        </div>
-        <p>${item.description}</p>
-      `;
-
-      card.append(UIManager.makeButton('Купить', canBuy ? 'gold' : 'disabled', () => buy(item.id), !canBuy));
-      list.append(card);
+      card.innerHTML = `<div class="shop-top"><h4>${item.icon} ${item.name}</h4><strong>${item.price || 0} 🪙</strong></div><p>${item.rarity}</p>`;
+      card.append(UIManager.makeButton('Купить', can ? 'gold' : 'disabled', () => buy(item.id), !can));
+      box.append(card);
     });
-
-    const sellBtn = UIManager.qs('sellFromShopBtn');
-    if (sellBtn) {
-      sellBtn.onclick = () => sell(0);
-    }
   }
 
   return { renderShop };

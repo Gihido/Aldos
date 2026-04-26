@@ -1,93 +1,84 @@
 window.PlayerModule = (() => {
-  const ACCOUNT_KEY = 'sok_accounts_v2';
-  const PLAYER_KEY = 'sok_player_profile_v2';
+  const ACCOUNT_KEY = 'sok_accounts_v3';
+  const PLAYER_KEY = 'sok_player_profile_v3';
 
   const state = { accountName: null, player: null };
 
+  const defaultPlayerStats = () => ({ wins: 0, losses: 0, rareItems: 0 });
   const defaultEquipment = () => ({ weapon: null, armor: null, amulet: null, ring: null });
 
   function getAccounts() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || '{}');
-      return typeof parsed === 'object' && parsed ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function saveAccounts(data) {
-    localStorage.setItem(ACCOUNT_KEY, JSON.stringify(data));
+    try { return JSON.parse(localStorage.getItem(ACCOUNT_KEY) || '{}'); } catch { return {}; }
   }
 
   function register(username, password) {
     if (!username || !password) return { ok: false, message: 'Введите логин и пароль.' };
-    const accounts = getAccounts();
-    if (accounts[username]) return { ok: false, message: 'Такой пользователь уже существует.' };
-    accounts[username] = { password, createdAt: Date.now() };
-    saveAccounts(accounts);
+    const db = getAccounts();
+    if (db[username]) return { ok: false, message: 'Пользователь уже существует.' };
+    db[username] = { password, createdAt: Date.now() };
+    localStorage.setItem(ACCOUNT_KEY, JSON.stringify(db));
     return { ok: true };
   }
 
   function login(username, password) {
-    const accounts = getAccounts();
-    const user = accounts[username];
-    if (!user || user.password !== password) return { ok: false, message: 'Неверный логин или пароль.' };
+    const acc = getAccounts()[username];
+    if (!acc || acc.password !== password) return { ok: false, message: 'Неверный логин/пароль.' };
     state.accountName = username;
     return { ok: true };
   }
 
-  function makeNewCharacter(nickname, classId) {
+  function createCharacter(nickname, classId) {
     const klass = GameData.CLASSES[classId];
-    if (!klass || !state.accountName) return null;
-    const base = klass.baseStats;
+    if (!klass) return { ok: false, message: 'Не выбран класс.' };
 
-    return {
+    state.player = {
       accountName: state.accountName,
-      nickname,
+      nickname: String(nickname || '').trim().slice(0, 18) || 'Герой',
+      role: 'player',
       classId,
       className: klass.name,
       level: 1,
       exp: 0,
       gold: 120,
-      locationId: 'dawn_village',
-      hp: base.maxHp,
-      maxHp: base.maxHp,
-      energy: base.energy,
-      maxEnergy: base.energy,
-      minDamage: base.minDamage,
-      maxDamage: base.maxDamage,
-      critChance: base.critChance,
-      defense: base.defense,
+      hp: klass.baseStats.maxHp,
+      maxHp: klass.baseStats.maxHp,
+      energy: klass.baseStats.energy,
+      maxEnergy: klass.baseStats.energy,
+      minDamage: klass.baseStats.minDamage,
+      maxDamage: klass.baseStats.maxDamage,
+      critChance: klass.baseStats.critChance,
+      defense: klass.baseStats.defense,
       inventory: ['potion_small', 'potion_small'],
       equipment: defaultEquipment(),
+      locationId: 'dawn_village',
+      clanId: null,
+      clanRole: null,
+      settings: SettingsModule?.loadSettings?.() || {},
+      lastDailyChestAt: 0,
+      stats: defaultPlayerStats(),
+      inBattle: false,
+      muteUntil: 0,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
-  }
 
-  function createCharacter(nickname, classId) {
-    const cleanName = String(nickname || '').trim().slice(0, 18);
-    if (!cleanName) return { ok: false, message: 'Введите ник персонажа.' };
-    const character = makeNewCharacter(cleanName, classId);
-    if (!character) return { ok: false, message: 'Не удалось создать персонажа.' };
-    state.player = character;
-    savePlayer();
+    autosave();
     return { ok: true };
   }
 
-  function sanitizePlayer(raw) {
+  function sanitize(raw) {
     if (!raw || typeof raw !== 'object') return null;
-
     const klass = GameData.CLASSES[raw.classId] || GameData.CLASSES.warrior;
+
     const p = {
       accountName: String(raw.accountName || state.accountName || ''),
-      nickname: String(raw.nickname || 'Странник'),
+      nickname: String(raw.nickname || 'Герой'),
+      role: raw.role || 'player',
       classId: klass.id,
       className: klass.name,
       level: Math.max(1, Number(raw.level) || 1),
       exp: Math.max(0, Number(raw.exp) || 0),
       gold: Math.max(0, Number(raw.gold) || 0),
-      locationId: GameData.LOCATIONS.some((l) => l.id === raw.locationId) ? raw.locationId : 'dawn_village',
       hp: Math.max(0, Number(raw.hp) || klass.baseStats.maxHp),
       maxHp: Math.max(1, Number(raw.maxHp) || klass.baseStats.maxHp),
       energy: Math.max(0, Number(raw.energy) || klass.baseStats.energy),
@@ -98,6 +89,14 @@ window.PlayerModule = (() => {
       defense: Math.max(0, Number(raw.defense) || klass.baseStats.defense),
       inventory: Array.isArray(raw.inventory) ? raw.inventory.filter((id) => GameData.ITEMS[id]) : [],
       equipment: { ...defaultEquipment(), ...(raw.equipment || {}) },
+      locationId: GameData.LOCATIONS.some((l) => l.id === raw.locationId) ? raw.locationId : 'dawn_village',
+      clanId: raw.clanId || null,
+      clanRole: raw.clanRole || null,
+      settings: raw.settings || {},
+      lastDailyChestAt: Number(raw.lastDailyChestAt) || 0,
+      stats: { ...defaultPlayerStats(), ...(raw.stats || {}) },
+      inBattle: !!raw.inBattle,
+      muteUntil: Number(raw.muteUntil) || 0,
       createdAt: Number(raw.createdAt) || Date.now(),
       updatedAt: Date.now()
     };
@@ -110,50 +109,51 @@ window.PlayerModule = (() => {
   function loadPlayer() {
     try {
       const raw = JSON.parse(localStorage.getItem(PLAYER_KEY) || 'null');
-      const safe = sanitizePlayer(raw);
-      if (!safe) return null;
-      state.player = safe;
-      state.accountName = safe.accountName;
-      return state.player;
+      const p = sanitize(raw);
+      if (!p) return null;
+      state.player = p;
+      state.accountName = p.accountName;
+      return p;
     } catch {
       return null;
     }
   }
 
-  function savePlayer() {
+  function autosave() {
     if (!state.player) return;
     state.player.updatedAt = Date.now();
     localStorage.setItem(PLAYER_KEY, JSON.stringify(state.player));
   }
 
-  function recoverCorruptedSave() {
-    if (!state.accountName) return;
-    const fallback = makeNewCharacter('Новый Герой', 'warrior');
-    state.player = fallback;
-    savePlayer();
-    UIManager.showToast('Сохранение повреждено. Создан новый герой.', 'warning');
-  }
+  function getPlayer() { return state.player; }
 
-  function getPlayer() {
-    return state.player;
-  }
+  function expToNextLevel(level = state.player.level) { return Math.max(100, level * 100); }
 
-  function expToNextLevel(level = state.player.level) {
-    return Math.max(100, level * 100);
-  }
-
-  function autosave() {
-    savePlayer();
+  function getComputedStats() {
+    const p = state.player;
+    if (!p) return { minDamage: 1, maxDamage: 1, defense: 0, critChance: 0, maxHp: 1 };
+    const s = { minDamage: p.minDamage, maxDamage: p.maxDamage, defense: p.defense, critChance: p.critChance, maxHp: p.maxHp };
+    ['weapon', 'armor', 'amulet', 'ring'].forEach((slot) => {
+      const itemId = p.equipment[slot];
+      const item = GameData.ITEMS[itemId];
+      if (!item) return;
+      s.minDamage += item.minDamageBonus || 0;
+      s.maxDamage += item.maxDamageBonus || 0;
+      s.defense += item.defenseBonus || 0;
+      s.critChance += item.critChanceBonus || 0;
+      s.maxHp += item.maxHpBonus || 0;
+    });
+    return s;
   }
 
   function changeGold(amount) {
     const p = state.player;
-    p.gold = Math.max(0, p.gold + amount);
+    p.gold = Math.max(0, p.gold + Number(amount || 0));
     autosave();
   }
 
-  function spendGold(amount) {
-    const cost = Math.max(0, Number(amount) || 0);
+  function spendGold(cost) {
+    cost = Math.max(0, Number(cost) || 0);
     if (state.player.gold < cost) return false;
     state.player.gold -= cost;
     autosave();
@@ -162,9 +162,8 @@ window.PlayerModule = (() => {
 
   function addExp(amount) {
     const p = state.player;
-    p.exp += Math.max(0, Number(amount) || 0);
+    p.exp += Math.max(0, Number(amount || 0));
     let leveled = false;
-
     while (p.exp >= expToNextLevel(p.level)) {
       p.exp -= expToNextLevel(p.level);
       p.level += 1;
@@ -175,30 +174,12 @@ window.PlayerModule = (() => {
       p.energy = p.maxEnergy;
       leveled = true;
     }
-
     autosave();
     return leveled;
   }
 
-  function heal(amount) {
-    const p = state.player;
-    p.hp = Math.min(getComputedStats().maxHp, p.hp + Math.max(0, Number(amount) || 0));
-    autosave();
-  }
-
-  function restoreEnergy(amount) {
-    const p = state.player;
-    p.energy = Math.min(p.maxEnergy, p.energy + Math.max(0, Number(amount) || 0));
-    autosave();
-  }
-
-  function applyDefeatPenalty() {
-    const p = state.player;
-    p.locationId = 'dawn_village';
-    p.hp = 1;
-    p.energy = p.maxEnergy;
-    autosave();
-  }
+  function heal(v) { state.player.hp = Math.min(getComputedStats().maxHp, state.player.hp + Math.max(0, v)); autosave(); }
+  function restoreEnergy(v) { state.player.energy = Math.min(state.player.maxEnergy, state.player.energy + Math.max(0, v)); autosave(); }
 
   function setLocation(locationId) {
     if (!GameData.LOCATIONS.some((l) => l.id === locationId)) return false;
@@ -207,77 +188,14 @@ window.PlayerModule = (() => {
     return true;
   }
 
-  function getEquippedItem(slot) {
-    const id = state.player?.equipment?.[slot];
-    return id ? GameData.ITEMS[id] : null;
-  }
+  function addWin() { state.player.stats.wins += 1; autosave(); }
+  function addLoss() { state.player.stats.losses += 1; autosave(); }
 
-  function getComputedStats() {
-    const p = state.player;
-    if (!p) return { minDamage: 1, maxDamage: 1, critChance: 0, defense: 0, maxHp: 1 };
-
-    const stats = {
-      minDamage: p.minDamage,
-      maxDamage: p.maxDamage,
-      critChance: p.critChance,
-      defense: p.defense,
-      maxHp: p.maxHp
-    };
-
-    ['weapon', 'armor', 'amulet', 'ring'].forEach((slot) => {
-      const it = getEquippedItem(slot);
-      if (!it) return;
-      stats.minDamage += it.minDamageBonus || 0;
-      stats.maxDamage += it.maxDamageBonus || 0;
-      stats.critChance += it.critChanceBonus || 0;
-      stats.defense += it.defenseBonus || 0;
-      stats.maxHp += it.maxHpBonus || 0;
-    });
-
-    stats.minDamage = Math.max(1, stats.minDamage);
-    stats.maxDamage = Math.max(stats.minDamage, stats.maxDamage);
-    stats.critChance = Math.max(0, stats.critChance);
-    stats.defense = Math.max(0, stats.defense);
-    stats.maxHp = Math.max(1, stats.maxHp);
-    return stats;
-  }
-
-  function renderTopPanel() {
-    const p = state.player;
-    if (!p) return;
-
-    const stats = getComputedStats();
-    p.hp = Math.max(0, Math.min(p.hp, stats.maxHp));
-    p.energy = Math.max(0, Math.min(p.energy, p.maxEnergy));
-
-    UIManager.safeSetText('topNick', p.nickname);
-    UIManager.safeSetText('topClassLevel', `${p.className} • Lv.${p.level}`);
-    UIManager.safeSetText('topGold', `🪙 ${p.gold}`);
-
-    UIManager.updateProgressBar('hpFill', 'hpLabel', p.hp, stats.maxHp);
-    UIManager.updateProgressBar('energyFill', 'energyLabel', p.energy, p.maxEnergy);
-    UIManager.updateProgressBar('xpFill', 'xpLabel', p.exp, expToNextLevel());
-  }
+  function renderTopPanel() { UIManager.renderPlayerHeader(); }
 
   return {
-    register,
-    login,
-    createCharacter,
-    loadPlayer,
-    savePlayer,
-    recoverCorruptedSave,
-    getPlayer,
-    getComputedStats,
-    getEquippedItem,
-    expToNextLevel,
-    autosave,
-    changeGold,
-    spendGold,
-    addExp,
-    heal,
-    restoreEnergy,
-    applyDefeatPenalty,
-    setLocation,
-    renderTopPanel
+    register, login, createCharacter, loadPlayer, autosave, getPlayer, expToNextLevel,
+    getComputedStats, changeGold, spendGold, addExp, heal, restoreEnergy, setLocation,
+    addWin, addLoss, renderTopPanel
   };
 })();

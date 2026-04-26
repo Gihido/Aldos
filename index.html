@@ -12,14 +12,13 @@
 
     <section id="loadingScreen" class="screen active center-screen">
       <h1>🌑 Тени Старого Королевства</h1>
-      <p>Пробуждаем древние руны...</p>
+      <p>Инициализация мира...</p>
       <div class="loading-orb"></div>
     </section>
 
     <section id="menuScreen" class="screen center-screen">
       <div class="panel menu-card">
         <h2>Главное меню</h2>
-        <p>Текстовая RPG в тёмном фэнтези мире.</p>
         <button id="continueBtn" class="btn gold">Продолжить</button>
         <button id="newGameBtn" class="btn primary">Новая игра</button>
       </div>
@@ -28,8 +27,8 @@
     <section id="authScreen" class="screen center-screen">
       <div class="panel form-card">
         <h2>Вход / Регистрация</h2>
-        <input id="authLogin" type="text" placeholder="Логин" maxlength="18" />
-        <input id="authPassword" type="password" placeholder="Пароль" maxlength="24" />
+        <input id="authLogin" placeholder="Логин" />
+        <input id="authPassword" type="password" placeholder="Пароль" />
         <div class="row">
           <button id="registerBtn" class="btn secondary">Регистрация</button>
           <button id="loginBtn" class="btn gold">Войти</button>
@@ -40,14 +39,14 @@
     <section id="characterCreateScreen" class="screen center-screen">
       <div class="panel form-card">
         <h2>Создание героя</h2>
-        <input id="heroName" type="text" placeholder="Имя героя" maxlength="18" />
+        <input id="heroName" placeholder="Ник героя" />
         <div id="classGrid" class="class-grid"></div>
-        <button id="createCharacterBtn" class="btn gold">Создать персонажа</button>
+        <button id="createCharacterBtn" class="btn gold">Создать героя</button>
       </div>
     </section>
 
     <section id="gameScreen" class="screen game-screen">
-      <header class="top-panel panel">
+      <header id="top-panel" class="top-panel panel">
         <div class="top-row">
           <div>
             <h3 id="topNick">—</h3>
@@ -55,20 +54,10 @@
           </div>
           <strong id="topGold">🪙 0</strong>
         </div>
-
         <div class="bars">
-          <div class="bar-block">
-            <div class="bar-label">HP <small id="hpLabel">0/0</small></div>
-            <div class="bar hp"><i id="hpFill"></i></div>
-          </div>
-          <div class="bar-block">
-            <div class="bar-label">Энергия <small id="energyLabel">0/0</small></div>
-            <div class="bar energy"><i id="energyFill"></i></div>
-          </div>
-          <div class="bar-block">
-            <div class="bar-label">Опыт <small id="xpLabel">0/0</small></div>
-            <div class="bar xp"><i id="xpFill"></i></div>
-          </div>
+          <div class="bar-block"><div class="bar-label">HP <small id="hpLabel">0/0</small></div><div class="bar hp"><i id="hpFill"></i></div></div>
+          <div class="bar-block"><div class="bar-label">Энергия <small id="energyLabel">0/0</small></div><div class="bar energy"><i id="energyFill"></i></div></div>
+          <div class="bar-block"><div class="bar-label">XP <small id="xpLabel">0/0</small></div><div class="bar xp"><i id="xpFill"></i></div></div>
         </div>
       </header>
 
@@ -78,44 +67,57 @@
           <p id="currentLocationDesc"></p>
           <small id="currentLocationLevel"></small>
           <p id="merchantHint"></p>
-          <div class="row">
+          <div class="row wrap">
             <button id="searchAdventureBtn" class="btn primary">⚔️ Искать приключение</button>
             <button id="openChestBtn" class="btn gold hidden">🎁 Открыть сундук</button>
+            <button id="dailyChestBtn" class="btn secondary">📦 Ежедневный сундук</button>
+            <button id="clanChestBtn" class="btn secondary">🛡️ Клановый сундук</button>
           </div>
-
-          <h4>Доступные локации</h4>
+          <h4>Локации</h4>
           <div id="locationsGrid" class="cards-grid"></div>
-
-          <h4>Игроки рядом</h4>
+          <h4>Игроки в локации</h4>
+          <div id="inviteList" class="cards-grid"></div>
           <ul id="playersInLocation" class="list-box"></ul>
         </section>
 
-        <section id="characterTab" class="tab-screen panel">
-          <h3>Персонаж</h3>
-          <div class="stats-grid">
-            <div><span>Имя</span><strong id="charName">—</strong></div>
-            <div><span>Класс</span><strong id="charClass">—</strong></div>
-            <div><span>Уровень</span><strong id="charLevel">—</strong></div>
-            <div><span>Опыт</span><strong id="charExp">—</strong></div>
-            <div><span>Золото</span><strong id="charGold">—</strong></div>
+        <section id="battleTab" class="tab-screen panel battle-screen">
+          <h3>⚔️ Бой</h3>
+          <div id="battleTurnText" class="turn-text">Сейчас ходит: —</div>
+          <div class="combat-grid">
+            <article id="battlePlayerCard" class="combat-card">
+              <h4>Вы</h4>
+              <div class="bar hp"><i id="battlePlayerHpFill"></i></div>
+              <small id="battlePlayerHp">0/0</small>
+            </article>
+            <article id="battleAllyCard" class="combat-card">
+              <h4>Союзник</h4>
+              <div class="bar hp"><i style="width:0%"></i></div>
+              <small>Ожидание</small>
+            </article>
+            <article id="battleMonsterCard" class="combat-card">
+              <h4 id="battleMonsterName">Монстр</h4>
+              <div class="bar hp enemy"><i id="battleMonsterHpFill"></i></div>
+              <small id="battleMonsterHp">0/0</small>
+            </article>
           </div>
-          <p id="charStats">—</p>
-
-          <h4>Экипировка</h4>
-          <ul class="equip-list">
-            <li>⚔️ Оружие: <strong id="eqWeapon">Нет</strong></li>
-            <li>🛡️ Броня: <strong id="eqArmor">Нет</strong></li>
-            <li>📿 Амулет: <strong id="eqAmulet">Нет</strong></li>
-            <li>💍 Кольцо: <strong id="eqRing">Нет</strong></li>
-          </ul>
-          <div class="row wrap">
-            <button id="healBtn" class="btn secondary">🧪 Восстановить HP</button>
-            <button id="openOnlineBtn" class="btn secondary">👥 Игроки онлайн</button>
-            <button id="openSettingsBtn" class="btn secondary">⚙️ Настройки</button>
+          <div class="row wrap actions-grid">
+            <button id="btnAttack" class="btn primary">Атака</button>
+            <button id="btnStrongAttack" class="btn gold">Сильный</button>
+            <button id="btnDefend" class="btn secondary">Защита</button>
+            <button id="btnUsePotion" class="btn secondary">Зелье</button>
+            <button id="btnSkill" class="btn secondary">Навык</button>
+            <button id="btnRun" class="btn danger">Сбежать</button>
           </div>
-
-          <h4>Журнал событий</h4>
-          <ul id="eventLog" class="list-box"></ul>
+          <h4>Совместный бой</h4>
+          <div class="row wrap actions-grid">
+            <button id="partyAttackBtn" class="btn primary">Атака</button>
+            <button id="partyStrongBtn" class="btn gold">Сильный</button>
+            <button id="partyDefBtn" class="btn secondary">Защита</button>
+            <button id="partyPotionBtn" class="btn secondary">Зелье</button>
+            <button id="partySkillBtn" class="btn secondary">Навык</button>
+            <button id="partyRunBtn" class="btn danger">Сбежать</button>
+          </div>
+          <ul id="battleLog" class="list-box combat-log"></ul>
         </section>
 
         <section id="inventoryTab" class="tab-screen panel">
@@ -127,7 +129,7 @@
             <button class="btn secondary" data-inv-filter="potion">Зелья</button>
             <button class="btn secondary" data-inv-filter="rare">Редкое</button>
           </div>
-          <div id="inventoryEmpty" class="empty-state hidden">🎒 Инвентарь пуст.</div>
+          <div id="inventoryEmpty" class="empty-state hidden">Инвентарь пуст.</div>
           <div id="inventoryList" class="cards-grid"></div>
         </section>
 
@@ -136,87 +138,91 @@
           <div class="row wrap">
             <button class="btn secondary active" data-chat-channel="global">Общий</button>
             <button class="btn secondary" data-chat-channel="location">Локация</button>
+            <button class="btn secondary" data-chat-channel="clan">Клан</button>
           </div>
           <div id="chatMessages" class="chat-box"></div>
           <div class="chat-input-row">
-            <input id="chatInput" type="text" placeholder="Введите сообщение" maxlength="220" />
+            <input id="chatInput" placeholder="Сообщение..." maxlength="220" />
             <button id="sendChatBtn" class="btn gold">Отправить</button>
           </div>
         </section>
 
-        <section id="shopTab" class="tab-screen panel">
-          <h3>Магазин</h3>
-          <p id="shopHint">—</p>
-          <div id="shopItems" class="cards-grid"></div>
-          <button id="sellFromShopBtn" class="btn secondary">Продажа из инвентаря</button>
+        <section id="clanTab" class="tab-screen panel">
+          <h3>Клан</h3>
+          <div class="row wrap">
+            <input id="clanNameInput" placeholder="Название клана" />
+            <input id="clanTagInput" placeholder="Тег" />
+            <input id="clanDescInput" placeholder="Описание" />
+            <button id="createClanBtn" class="btn gold">Создать</button>
+          </div>
+          <div class="row wrap">
+            <input id="inviteClanInput" placeholder="Игрок для приглашения" />
+            <button id="inviteClanBtn" class="btn secondary">Пригласить</button>
+            <button id="leaveClanBtn" class="btn danger">Выйти из клана</button>
+          </div>
+          <div id="clanBox"></div>
         </section>
 
-        <section id="onlineTab" class="tab-screen panel">
-          <h3>Игроки онлайн</h3>
-          <ul id="onlinePlayersList" class="list-box"></ul>
-          <button id="backFromOnline" class="btn secondary">Назад</button>
+        <section id="leaderboardTab" class="tab-screen panel">
+          <h3>Рейтинг</h3>
+          <div class="row wrap">
+            <button class="btn secondary" data-lb="level">Уровень</button>
+            <button class="btn secondary" data-lb="gold">Золото</button>
+            <button class="btn secondary" data-lb="wins">Победы</button>
+            <button class="btn secondary" data-lb="power">Сила</button>
+            <button class="btn secondary" data-lb="clan">Кланы</button>
+            <button class="btn secondary" data-lb="rare">Редкие</button>
+          </div>
+          <div id="leaderboardBox" class="list-box"></div>
         </section>
 
         <section id="settingsTab" class="tab-screen panel">
           <h3>Настройки</h3>
-          <p>Сохраняется автоматически после боя, переходов, покупок, продажи, лута и повышения уровня.</p>
-          <p>Firebase сейчас выключен: игра работает локально (localStorage).</p>
-          <button id="backFromSettings" class="btn secondary">Назад</button>
+          <div class="settings-grid">
+            <label>Громкость <input id="settingsVolume" type="range" min="0" max="100" /></label>
+            <label><input id="settingsAnimations" type="checkbox" /> Анимации</label>
+            <label><input id="settingsVibration" type="checkbox" /> Вибрация</label>
+            <label>Размер текста <input id="settingsTextSize" type="range" min="80" max="130" /></label>
+            <label>Качество
+              <select id="settingsQuality"><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select>
+            </label>
+            <label>Тема
+              <select id="settingsTheme"><option value="dark">dark</option><option value="light">light</option></select>
+            </label>
+          </div>
+          <div class="row wrap">
+            <button id="exportSaveBtn" class="btn secondary">Экспорт</button>
+            <button id="importSaveBtn" class="btn secondary">Импорт</button>
+            <button id="clearSaveBtn" class="btn danger">Очистить сохранение</button>
+          </div>
+          <textarea id="saveImportText" class="save-box" placeholder="Вставьте JSON для импорта"></textarea>
+
+          <h4>Онлайн и админ</h4>
+          <button id="openOnlineBtn" class="btn secondary">Игроки онлайн</button>
+          <button id="openAdminBtn" class="btn gold hidden">Админ-панель</button>
+          <ul id="onlinePlayersList" class="list-box"></ul>
+          <div id="adminBox"></div>
         </section>
       </main>
 
       <nav class="bottom-nav panel">
         <button data-tab="location" class="active">🌍<span>Локация</span></button>
-        <button data-tab="character">👤<span>Персонаж</span></button>
+        <button data-tab="battle">⚔️<span>Бой</span></button>
         <button data-tab="inventory">🎒<span>Инвентарь</span></button>
         <button data-tab="chat">💬<span>Чат</span></button>
-        <button data-tab="shop">🧙<span>Магазин</span></button>
+        <button data-tab="clan">🛡️<span>Клан</span></button>
+        <button data-tab="leaderboard">🏆<span>Рейтинг</span></button>
+        <button data-tab="settings">⚙️<span>Настройки</span></button>
       </nav>
     </section>
   </div>
 
-  <div id="combatModal" class="modal">
+  <div id="genericModal" class="modal">
     <div class="modal-card panel">
-      <h3>⚔️ Бой</h3>
-      <div class="combat-grid">
-        <article class="combat-card">
-          <h4>Герой</h4>
-          <div class="bar hp"><i id="combatPlayerFill"></i></div>
-          <small id="combatPlayerHp">0/0</small>
-        </article>
-        <article id="combatMonsterCard" class="combat-card">
-          <h4 id="combatMonsterName">Монстр</h4>
-          <div class="bar hp enemy"><i id="combatMonsterFill"></i></div>
-          <small id="combatMonsterHp">0/0</small>
-        </article>
-      </div>
-
-      <div class="row wrap">
-        <button id="btnAttack" class="btn primary">Атака</button>
-        <button id="btnStrongAttack" class="btn gold">Сильный удар</button>
-        <button id="btnDefend" class="btn secondary">Защита</button>
-        <button id="btnUsePotion" class="btn secondary">Зелье</button>
-        <button id="btnRun" class="btn danger">Сбежать</button>
-      </div>
-
-      <ul id="combatLog" class="list-box combat-log"></ul>
-    </div>
-  </div>
-
-  <div id="combatResultModal" class="modal">
-    <div class="modal-card panel center">
-      <h3>Итог боя</h3>
-      <p id="combatResultText"></p>
-      <button id="closeCombatResult" class="btn gold">Продолжить</button>
-    </div>
-  </div>
-
-  <div id="chestModal" class="modal">
-    <div class="modal-card panel center">
-      <div class="chest-anim">🎁</div>
-      <h3>Сундук открыт!</h3>
-      <p id="chestLootText"></p>
-      <button id="closeChestModal" class="btn gold">Забрать</button>
+      <h3 id="genericModalTitle">Окно</h3>
+      <div id="genericModalBody"></div>
+      <div id="genericModalFooter" class="row wrap"></div>
+      <button class="btn secondary" onclick="UIManager.closeModal()">Закрыть</button>
     </div>
   </div>
 
@@ -231,6 +237,14 @@
   <script src="./js/shop.js"></script>
   <script src="./js/chat.js"></script>
   <script src="./js/multiplayer.js"></script>
+  <script src="./js/server.js"></script>
+  <script src="./js/online.js"></script>
+  <script src="./js/partyCombat.js"></script>
+  <script src="./js/clans.js"></script>
+  <script src="./js/leaderboard.js"></script>
+  <script src="./js/admin.js"></script>
+  <script src="./js/settings.js"></script>
+  <script src="./js/regen.js"></script>
   <script src="./js/main.js"></script>
 </body>
 </html>

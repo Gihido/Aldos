@@ -1,83 +1,74 @@
 window.CombatModule = (() => {
-  const state = {
-    active: false,
-    monster: null,
-    rewardGranted: false,
-    defending: false
-  };
+  const state = { active: false, monster: null, rewardTaken: false };
 
   const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 
-  function resetState() {
-    state.active = false;
-    state.monster = null;
-    state.rewardGranted = false;
-    state.defending = false;
-  }
-
-  function getMonster(locationId) {
-    const loc = GameData.LOCATIONS.find((l) => l.id === locationId);
+  function spawnMonster(locationId) {
+    const loc = GameData.LOCATIONS.find((x) => x.id === locationId);
     if (!loc?.monsters?.length) return null;
-    const template = GameData.MONSTERS[loc.monsters[Math.floor(Math.random() * loc.monsters.length)]];
-    if (!template) return null;
-    return { ...template, hp: template.hp, maxHp: template.hp };
+    const id = loc.monsters[Math.floor(Math.random() * loc.monsters.length)];
+    const m = GameData.MONSTERS[id];
+    if (!m) return null;
+    return { ...m, hp: m.hp, maxHp: m.hp };
   }
 
-  function setCombatButtonsDisabled(disabled) {
-    ['btnAttack', 'btnStrongAttack', 'btnDefend', 'btnUsePotion', 'btnRun'].forEach((id) => {
-      const btn = UIManager.qs(id);
-      if (btn) btn.disabled = disabled;
+  function setCombatButtons(disabled) {
+    ['btnAttack', 'btnStrongAttack', 'btnDefend', 'btnUsePotion', 'btnSkill', 'btnRun'].forEach((id) => {
+      const el = UIManager.qs(id);
+      if (el) el.disabled = disabled;
     });
   }
 
-  function log(text) {
-    const root = UIManager.qs('combatLog');
-    if (!root) return;
-    const li = document.createElement('li');
-    li.textContent = text;
-    root.prepend(li);
+  function startCombat(locationId) {
+    if (state.active) return UIManager.showToast('Вы уже в бою.', 'warning');
+
+    const m = spawnMonster(locationId);
+    if (!m) return UIManager.showToast('Монстр не найден.', 'error');
+
+    const p = PlayerModule.getPlayer();
+    p.inBattle = true;
+    PlayerModule.autosave();
+
+    state.active = true;
+    state.monster = m;
+    state.rewardTaken = false;
+
+    UIManager.setScreen('battle');
+    UIManager.safeSetText('battleMonsterName', `${m.name} (Lv.${m.level})`);
+    UIManager.safeSetText('battleTurnText', `Сейчас ходит: ${p.nickname}`);
+    const log = UIManager.qs('battleLog');
+    if (log) log.innerHTML = '';
+    setCombatButtons(false);
+    render();
+    logLine(`Начался бой против ${m.name}.`);
   }
 
   function render() {
-    if (!state.monster) return;
-    const player = PlayerModule.getPlayer();
-    const stats = PlayerModule.getComputedStats();
+    const p = PlayerModule.getPlayer();
+    const s = PlayerModule.getComputedStats();
+    const m = state.monster;
+    if (!p || !m) return;
 
-    UIManager.safeSetText('combatMonsterName', state.monster.name);
-    UIManager.updateProgressBar('combatMonsterFill', 'combatMonsterHp', state.monster.hp, state.monster.maxHp);
-    UIManager.updateProgressBar('combatPlayerFill', 'combatPlayerHp', player.hp, stats.maxHp);
+    UIManager.updateBars();
+    updateBar('battlePlayerHpFill', 'battlePlayerHp', p.hp, s.maxHp);
+    updateBar('battleMonsterHpFill', 'battleMonsterHp', m.hp, m.maxHp);
   }
 
-  function animateMonsterHit(type = 'hit') {
-    const card = UIManager.qs('combatMonsterCard');
-    if (!card) return;
-    card.classList.remove('hit', 'crit');
-    void card.offsetWidth;
-    card.classList.add(type);
+  function updateBar(fillId, labelId, cur, max) {
+    const fill = UIManager.qs(fillId);
+    if (fill) fill.style.width = `${(Math.max(0, cur) / Math.max(1, max)) * 100}%`;
+    UIManager.safeSetText(labelId, `${Math.max(0, Math.round(cur))} / ${Math.max(1, Math.round(max))}`);
   }
 
-  function startCombat(locationId) {
-    if (state.active) return;
-
-    const monster = getMonster(locationId);
-    if (!monster) {
-      UIManager.showToast('Монстр не найден.', 'error');
-      return;
-    }
-
-    state.active = true;
-    state.monster = monster;
-    state.rewardGranted = false;
-    state.defending = false;
-
-    UIManager.qs('combatLog').innerHTML = '';
-    setCombatButtonsDisabled(false);
-    UIManager.openModal('combatModal');
-    log(`Появился враг: ${monster.name}`);
-    render();
+  function logLine(text) {
+    const log = UIManager.qs('battleLog');
+    if (!log) return;
+    const li = document.createElement('li');
+    li.textContent = text;
+    log.prepend(li);
   }
 
-  function spendEnergy(cost) {
+  function useEnergy(cost) {
     const p = PlayerModule.getPlayer();
     if (p.energy < cost) {
       UIManager.showToast('Недостаточно энергии.', 'warning');
@@ -85,157 +76,156 @@ window.CombatModule = (() => {
     }
     p.energy -= cost;
     PlayerModule.autosave();
-    PlayerModule.renderTopPanel();
     return true;
   }
 
-  function rollPlayerDamage(multiplier) {
+  function classSkillDamage() {
+    const p = PlayerModule.getPlayer();
     const stats = PlayerModule.getComputedStats();
-    let dmg = rand(stats.minDamage, stats.maxDamage) * multiplier;
-    const crit = Math.random() <= stats.critChance;
-    if (crit) dmg *= 1.75;
-    return { damage: Math.round(dmg), crit };
+    if (p.classId === 'mage') return rand(stats.maxDamage, stats.maxDamage + 12);
+    if (p.classId === 'archer') return rand(stats.minDamage + 8, stats.maxDamage + 6);
+    return rand(stats.minDamage + 5, stats.maxDamage + 5);
   }
 
-  function actionAttack(mode) {
+  function playerAction(actionType) {
     if (!state.active || !state.monster) return;
 
-    const energyCost = mode === 'strong' ? 18 : 8;
-    const mult = mode === 'strong' ? 1.45 : 1;
-    if (!spendEnergy(energyCost)) return;
+    const p = PlayerModule.getPlayer();
+    const stats = PlayerModule.getComputedStats();
 
-    const { damage, crit } = rollPlayerDamage(mult);
+    if (actionType === 'run') return finish('run');
+
+    if (actionType === 'potion') {
+      const idx = p.inventory.findIndex((id) => GameData.ITEMS[id]?.type === 'potion');
+      if (idx < 0) return UIManager.showToast('Нет зелий.', 'warning');
+      const item = GameData.ITEMS[p.inventory[idx]];
+      p.inventory.splice(idx, 1);
+      if (item.heal) PlayerModule.heal(item.heal);
+      if (item.restoreEnergy) PlayerModule.restoreEnergy(item.restoreEnergy);
+      UIManager.animateHeal('battlePlayerCard', item.heal || item.restoreEnergy || 10);
+      logLine(`Использовано ${item.name}.`);
+      return enemyTurn();
+    }
+
+    if (actionType === 'defend') {
+      p.isDefending = true;
+      logLine('Вы приняли защитную стойку.');
+      return enemyTurn();
+    }
+
+    let base = rand(stats.minDamage, stats.maxDamage);
+    if (actionType === 'strong') {
+      if (!useEnergy(18)) return;
+      base = Math.round(base * 1.45);
+    }
+    if (actionType === 'skill') {
+      if (!useEnergy(24)) return;
+      base = classSkillDamage();
+    }
+
+    const crit = Math.random() <= stats.critChance;
+    const damage = Math.max(1, base - (state.monster.defense || 0)) * (crit ? 2 : 1);
     state.monster.hp = Math.max(0, state.monster.hp - damage);
-    animateMonsterHit(crit ? 'crit' : 'hit');
-    log(`Вы нанесли ${damage}${crit ? ' (Крит!)' : ''}.`);
+    UIManager.animateDamage('battleMonsterCard', damage, crit);
+    logLine(`Вы наносите ${damage}${crit ? ' (Крит!)' : ''}.`);
     render();
 
-    if (state.monster.hp <= 0) {
-      finishCombat('win');
-      return;
-    }
-
+    if (state.monster.hp <= 0) return finish('win');
     enemyTurn();
-  }
-
-  function actionDefend() {
-    if (!state.active) return;
-    state.defending = true;
-    log('Вы готовитесь к обороне.');
-    enemyTurn();
-  }
-
-  function actionPotion() {
-    if (!state.active) return;
-    const p = PlayerModule.getPlayer();
-    const idx = p.inventory.findIndex((id) => GameData.ITEMS[id]?.type === 'potion');
-    if (idx === -1) {
-      UIManager.showToast('Зелий нет в инвентаре.', 'warning');
-      return;
-    }
-    InventoryModule.renderInventory();
-    const potion = GameData.ITEMS[p.inventory[idx]];
-    if (potion.heal) PlayerModule.heal(potion.heal);
-    if (potion.restoreEnergy) PlayerModule.restoreEnergy(potion.restoreEnergy);
-    p.inventory.splice(idx, 1);
-    PlayerModule.autosave();
-    PlayerModule.renderTopPanel();
-    log(`Вы использовали ${potion.name}.`);
-    enemyTurn();
-  }
-
-  function actionRun() {
-    if (!state.active) return;
-    finishCombat('run');
   }
 
   function enemyTurn() {
     if (!state.active || !state.monster) return;
 
     const p = PlayerModule.getPlayer();
-    const stats = PlayerModule.getComputedStats();
-    const enemyRaw = rand(state.monster.damage[0], state.monster.damage[1]);
-    const blocked = state.defending ? stats.defense * 2 : stats.defense;
-    const damage = Math.max(1, enemyRaw - blocked);
+    const s = PlayerModule.getComputedStats();
+    let damage = rand(state.monster.damage[0], state.monster.damage[1]) - s.defense;
+    if (p.isDefending) damage = Math.floor(damage * 0.5);
+    p.isDefending = false;
 
+    damage = Math.max(1, damage);
     p.hp = Math.max(0, p.hp - damage);
-    state.defending = false;
-
-    log(`${state.monster.name} наносит ${damage} урона.`);
+    UIManager.animateDamage('battlePlayerCard', damage, false);
+    logLine(`${state.monster.name} наносит ${damage}.`);
     PlayerModule.autosave();
-    PlayerModule.renderTopPanel();
     render();
 
-    if (p.hp <= 0) finishCombat('lose');
+    if (p.hp <= 0) finish('lose');
   }
 
-  function grantRewards() {
-    if (!state.monster || state.rewardGranted) return;
-    state.rewardGranted = true;
+  function rollLoot(monster) {
+    const items = [];
+    const parts = [];
 
-    const m = state.monster;
-    const gold = rand(m.rewardGold[0], m.rewardGold[1]);
-    const exp = rand(m.rewardExp[0], m.rewardExp[1]);
-
-    PlayerModule.changeGold(gold);
-    const levelUp = PlayerModule.addExp(exp);
-
-    const lootNames = [];
-    (m.lootTable || []).forEach((drop) => {
-      if (Math.random() <= drop.chance && InventoryModule.addItem(drop.itemId)) {
-        lootNames.push(GameData.ITEMS[drop.itemId].name);
-      }
+    (monster.lootTable || []).forEach((id) => {
+      if (Math.random() <= 0.28 && InventoryModule.addItem(id)) items.push(GameData.ITEMS[id].name);
     });
 
-    if (Math.random() <= (LocationsModule.getCurrentLocation()?.chestChance || 0)) {
-      ChestModule.markChestFound(LocationsModule.getCurrentLocation().id);
-    }
+    (monster.monsterParts || []).forEach((id) => {
+      if (Math.random() <= 0.42 && InventoryModule.addItem(id)) parts.push(GameData.ITEMS[id].name);
+    });
 
-    const text = `+${gold} 🪙, +${exp} XP${lootNames.length ? `, лут: ${lootNames.join(', ')}` : ''}`;
-    UIManager.safeSetText('combatResultText', text);
-    UIManager.openModal('combatResultModal');
-    UIManager.showToast('Вы победили!', 'success');
-    if (levelUp) UIManager.showToast('Уровень повышен!', 'loot');
-    UIManager.pushEvent(`Победа в бою: ${text}`);
+    (monster.rareLoot || []).forEach((id) => {
+      if (Math.random() <= 0.08 && InventoryModule.addItem(id)) items.push(`⭐ ${GameData.ITEMS[id].name}`);
+    });
+
+    return { items, parts };
   }
 
-  function finishCombat(result) {
+  function finish(result) {
     if (!state.active) return;
-    setCombatButtonsDisabled(true);
+    setCombatButtons(true);
+    const p = PlayerModule.getPlayer();
 
-    if (result === 'win') {
-      log(`Победа над ${state.monster.name}.`);
-      grantRewards();
+    if (result === 'win' && !state.rewardTaken) {
+      state.rewardTaken = true;
+      const m = state.monster;
+      const gold = rand(m.gold[0], m.gold[1]);
+      const exp = rand(m.exp[0], m.exp[1]);
+      const loot = rollLoot(m);
+
+      PlayerModule.changeGold(gold);
+      const leveled = PlayerModule.addExp(exp);
+      if (leveled) UIManager.showLevelUpPopup();
+      PlayerModule.addWin();
+
+      const loc = LocationsModule.getCurrentLocation();
+      if (Math.random() <= (loc?.chestChance || 0)) {
+        ChestModule.generateChest(loc.id);
+      }
+
+      UIManager.showLootPopup({ gold, exp, items: [...loot.items, ...loot.parts] });
+      UIManager.showToast('Вы победили!', 'success');
     }
 
     if (result === 'lose') {
-      PlayerModule.applyDefeatPenalty();
-      UIManager.safeSetText('combatResultText', 'Вы проиграли и были возвращены в Деревню Рассвета (1 HP).');
-      UIManager.openModal('combatResultModal');
-      UIManager.showToast('Вы проиграли.', 'error');
-      UIManager.pushEvent('Поражение в бою.');
+      PlayerModule.addLoss();
+      p.locationId = 'dawn_village';
+      p.hp = 1;
+      UIManager.showToast('Поражение. Возврат в деревню.', 'error');
     }
 
     if (result === 'run') {
       UIManager.showToast('Вы сбежали из боя.', 'info');
-      UIManager.pushEvent('Бой завершён бегством.');
     }
 
-    resetState();
-    UIManager.closeModal('combatModal');
+    p.inBattle = false;
+    PlayerModule.autosave();
     PlayerModule.renderTopPanel();
-    CharacterModule.renderCharacterScreen();
+    state.active = false;
+    state.monster = null;
+    UIManager.setScreen('location');
     LocationsModule.renderLocationsScreen();
   }
 
   function bind() {
-    UIManager.qs('btnAttack')?.addEventListener('click', () => actionAttack('normal'));
-    UIManager.qs('btnStrongAttack')?.addEventListener('click', () => actionAttack('strong'));
-    UIManager.qs('btnDefend')?.addEventListener('click', actionDefend);
-    UIManager.qs('btnUsePotion')?.addEventListener('click', actionPotion);
-    UIManager.qs('btnRun')?.addEventListener('click', actionRun);
-    UIManager.qs('closeCombatResult')?.addEventListener('click', () => UIManager.closeModal('combatResultModal'));
+    UIManager.qs('btnAttack')?.addEventListener('click', () => playerAction('attack'));
+    UIManager.qs('btnStrongAttack')?.addEventListener('click', () => playerAction('strong'));
+    UIManager.qs('btnDefend')?.addEventListener('click', () => playerAction('defend'));
+    UIManager.qs('btnUsePotion')?.addEventListener('click', () => playerAction('potion'));
+    UIManager.qs('btnSkill')?.addEventListener('click', () => playerAction('skill'));
+    UIManager.qs('btnRun')?.addEventListener('click', () => playerAction('run'));
   }
 
-  return { bind, startCombat };
+  return { bind, startCombat, spawnMonster };
 })();
