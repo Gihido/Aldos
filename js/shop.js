@@ -1,18 +1,9 @@
 window.ShopModule = (() => {
-  function open() {
-    renderShopItems();
-    renderSellItems();
-    document.getElementById('shopModal').classList.add('show');
-  }
-
-  function close() {
-    document.getElementById('shopModal').classList.remove('show');
-  }
-
   function getAvailableItems() {
     const p = PlayerModule.getPlayer();
     return GameData.MERCHANT_ITEMS
       .map((id) => GameData.ITEMS[id])
+      .filter(Boolean)
       .filter((item) => {
         if (item.rarity === 'legendary') return p.level >= 7;
         if (item.rarity === 'epic') return p.level >= 4;
@@ -21,62 +12,58 @@ window.ShopModule = (() => {
       });
   }
 
-  function renderShopItems() {
-    const list = document.getElementById('shopBuyList');
-    list.innerHTML = '';
-    getAvailableItems().forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'shop-row';
-      row.innerHTML = `<span>${item.icon} ${item.name}</span><strong>${item.price} 🪙</strong>`;
-      row.appendChild(MainUI.makeButton('Купить', 'gold', () => buy(item.id)));
-      list.appendChild(row);
-    });
-  }
-
-  function renderSellItems() {
-    const p = PlayerModule.getPlayer();
-    const list = document.getElementById('shopSellList');
-    list.innerHTML = '';
-    p.inventory.forEach((itemId, idx) => {
-      const item = GameData.ITEMS[itemId];
-      const price = Math.round((item.price || 10) * 0.55);
-      const row = document.createElement('div');
-      row.className = 'shop-row';
-      row.innerHTML = `<span>${item.icon} ${item.name}</span><strong>${price} 🪙</strong>`;
-      row.appendChild(MainUI.makeButton('Продать', 'secondary', () => sell(idx, price)));
-      list.appendChild(row);
-    });
-  }
-
   function buy(itemId) {
     const item = GameData.ITEMS[itemId];
+    if (!item) return;
+
     if (!PlayerModule.spendGold(item.price)) {
-      MainUI.notify('Недостаточно золота.', 'danger');
+      UIManager.showToast('Недостаточно золота.', 'error');
       return;
     }
-    InventoryModule.addItem(itemId);
-    PlayerModule.renderPanel();
-    renderSellItems();
-    MainUI.notify(`Покупка: ${item.name}`, 'success');
-    MainUI.logEvent('Покупка в магазине.');
+
+    InventoryModule.addItem(item.id);
+    PlayerModule.renderTopPanel();
+    renderShop();
+    UIManager.pushEvent(`Покупка: ${item.name}`);
+    UIManager.showToast(`Куплено: ${item.name}`, 'success');
   }
 
-  function sell(index, price) {
-    const p = PlayerModule.getPlayer();
-    const item = GameData.ITEMS[p.inventory[index]];
-    p.inventory.splice(index, 1);
-    PlayerModule.addGold(price);
-    PlayerModule.savePlayer();
-    PlayerModule.renderPanel();
+  function sell(index) {
     InventoryModule.renderInventory();
-    renderSellItems();
-    MainUI.notify(`Продано: ${item.name}`, 'info');
-    MainUI.logEvent('Продажа в магазине.');
+    // Продажа реализована в инвентаре, тут только подсказка.
+    UIManager.showToast('Для продажи используйте кнопку "Продать" в инвентаре.', 'info');
   }
 
-  function bind() {
-    document.getElementById('closeShopModal').addEventListener('click', close);
+  function renderShop() {
+    const list = UIManager.qs('shopItems');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const player = PlayerModule.getPlayer();
+    const loc = LocationsModule.getCurrentLocation();
+    UIManager.safeSetText('shopHint', loc?.hasMerchant ? 'Торговец готов к сделке.' : 'В этой локации нет торговца.');
+
+    getAvailableItems().forEach((item) => {
+      const canBuy = player.gold >= item.price && !!loc?.hasMerchant;
+      const card = document.createElement('article');
+      card.className = 'shop-card';
+      card.innerHTML = `
+        <div class="shop-top">
+          <h4>${item.icon} ${item.name}</h4>
+          <strong>${item.price} 🪙</strong>
+        </div>
+        <p>${item.description}</p>
+      `;
+
+      card.append(UIManager.makeButton('Купить', canBuy ? 'gold' : 'disabled', () => buy(item.id), !canBuy));
+      list.append(card);
+    });
+
+    const sellBtn = UIManager.qs('sellFromShopBtn');
+    if (sellBtn) {
+      sellBtn.onclick = () => sell(0);
+    }
   }
 
-  return { open, bind };
+  return { renderShop };
 })();

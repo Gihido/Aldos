@@ -1,70 +1,75 @@
 window.ChestModule = (() => {
-  const KEY = 'sok_found_chests';
-  const getState = () => JSON.parse(localStorage.getItem(KEY) || '{}');
-  const setState = (data) => localStorage.setItem(KEY, JSON.stringify(data));
+  const KEY = 'sok_chests_v2';
+
+  function readState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(KEY) || '{}');
+      return typeof data === 'object' && data ? data : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveState(state) {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
 
   function hasChest(locationId) {
-    return !!getState()[locationId];
+    const state = readState();
+    return !!state[locationId] && !state[locationId].opened;
   }
 
   function markChestFound(locationId) {
-    const state = getState();
-    if (state[locationId]) return;
-    state[locationId] = { foundAt: Date.now(), opened: false };
-    setState(state);
-    MainUI.notify('Вы нашли сундук!', 'success');
-    MainUI.logEvent('Найден сундук в локации.');
-    LocationsModule.renderLocations();
+    const state = readState();
+    if (state[locationId]?.opened === false) return;
+    state[locationId] = { opened: false, foundAt: Date.now() };
+    saveState(state);
+    UIManager.showToast('Найден сундук!', 'loot');
+    LocationsModule.renderLocationsScreen();
   }
 
   function openChest(locationId) {
-    const state = getState();
+    const state = readState();
     const entry = state[locationId];
     if (!entry || entry.opened) {
-      MainUI.notify('Сундук уже открыт.', 'warn');
+      UIManager.showToast('Этот сундук уже открыт.', 'warning');
       return;
     }
 
-    const tier = Math.random() <= 0.3 ? 'rare' : 'common';
+    const tier = Math.random() <= 0.32 ? 'rare' : 'common';
     const table = GameData.CHESTS[tier];
     const gold = rand(table.gold[0], table.gold[1]);
 
-    PlayerModule.addGold(gold);
-    let obtained = [];
+    PlayerModule.changeGold(gold);
+
+    const drops = [];
     table.itemDrops.forEach((drop) => {
-      if (Math.random() <= drop.chance) {
-        InventoryModule.addItem(drop.itemId);
-        obtained.push(GameData.ITEMS[drop.itemId].name);
+      if (Math.random() <= drop.chance && InventoryModule.addItem(drop.itemId)) {
+        drops.push(GameData.ITEMS[drop.itemId].name);
       }
     });
 
     entry.opened = true;
-    setState(state);
+    entry.openedAt = Date.now();
+    saveState(state);
 
-    const reward = obtained.length ? `${gold} 🪙 + ${obtained.join(', ')}` : `${gold} 🪙`;
-    showChestModal(reward);
-    MainUI.logEvent(`Открыт сундук (${tier}): ${reward}`);
-    LocationsModule.renderLocations();
-    PlayerModule.renderPanel();
-  }
+    UIManager.qs('chestLootText').textContent = drops.length ? `+${gold} 🪙 и ${drops.join(', ')}` : `+${gold} 🪙`;
+    UIManager.openModal('chestModal');
+    UIManager.showToast('Сундук открыт!', 'loot');
+    UIManager.pushEvent(`Сундук (${tier}) открыт.`);
 
-  function showChestModal(text) {
-    const modal = document.getElementById('chestModal');
-    modal.classList.add('show');
-    document.getElementById('chestRewardText').textContent = text;
-    const box = document.getElementById('chestBox');
-    box.classList.remove('open');
-    void box.offsetWidth;
-    box.classList.add('open');
+    PlayerModule.renderTopPanel();
+    LocationsModule.renderLocationsScreen();
+    InventoryModule.renderInventory();
   }
 
   function bind() {
-    document.getElementById('closeChestModal').addEventListener('click', () => {
-      document.getElementById('chestModal').classList.remove('show');
-    });
+    UIManager.qs('closeChestModal')?.addEventListener('click', () => UIManager.closeModal('chestModal'));
   }
 
-  const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  function rand(a, b) {
+    return Math.floor(Math.random() * (b - a + 1)) + a;
+  }
 
-  return { hasChest, markChestFound, openChest, bind };
+  return { bind, hasChest, markChestFound, openChest };
 })();

@@ -1,99 +1,162 @@
 window.InventoryModule = (() => {
-  const rarityClass = { common: 'rarity-common', rare: 'rarity-rare', epic: 'rarity-epic', legendary: 'rarity-legendary' };
+  const RARITY_CLASS = {
+    common: 'rarity-common',
+    rare: 'rarity-rare',
+    epic: 'rarity-epic',
+    legendary: 'rarity-legendary'
+  };
+
+  function ensureInventory() {
+    const p = PlayerModule.getPlayer();
+    if (!p) return [];
+    if (!Array.isArray(p.inventory)) p.inventory = [];
+    return p.inventory;
+  }
 
   function addItem(itemId) {
-    const p = PlayerModule.getPlayer();
-    p.inventory.push(itemId);
-    PlayerModule.savePlayer();
-    MainUI.notify(`Получен предмет: ${GameData.ITEMS[itemId].name}`, 'success');
-    renderInventory();
-  }
-
-  function removeItemByIndex(index) {
-    const p = PlayerModule.getPlayer();
-    p.inventory.splice(index, 1);
-    PlayerModule.savePlayer();
-    renderInventory();
-  }
-
-  function usePotion(index) {
-    const p = PlayerModule.getPlayer();
-    const itemId = p.inventory[index];
     const item = GameData.ITEMS[itemId];
-    if (!item || item.type !== 'potion') return;
-    PlayerModule.heal(item.heal);
-    removeItemByIndex(index);
-    MainUI.notify(`Вы использовали ${item.name}.`, 'info');
-    PlayerModule.renderPanel();
+    if (!item) return false;
+    const inv = ensureInventory();
+    inv.push(itemId);
+    PlayerModule.autosave();
+    UIManager.showToast(`Получен предмет: ${item.name}`, 'loot');
+    renderInventory();
+    return true;
+  }
+
+  function removeByIndex(index) {
+    const inv = ensureInventory();
+    if (index < 0 || index >= inv.length) return null;
+    const [removed] = inv.splice(index, 1);
+    PlayerModule.autosave();
+    return removed;
+  }
+
+  function getSlotByType(type) {
+    if (type === 'weapon') return 'weapon';
+    if (type === 'armor') return 'armor';
+    if (type === 'amulet') return 'amulet';
+    if (type === 'ring') return 'ring';
+    return null;
   }
 
   function equip(index) {
     const p = PlayerModule.getPlayer();
-    const itemId = p.inventory[index];
+    if (!p) return;
+    const itemId = ensureInventory()[index];
     const item = GameData.ITEMS[itemId];
-    if (!item || (item.type !== 'weapon' && item.type !== 'armor')) return;
-    const slot = item.type;
+    if (!item) return;
+
+    const slot = getSlotByType(item.type);
+    if (!slot) return;
+
     const current = p.equipment[slot];
     p.equipment[slot] = itemId;
-    p.inventory.splice(index, 1);
+    removeByIndex(index);
     if (current) p.inventory.push(current);
-    PlayerModule.savePlayer();
-    PlayerModule.renderPanel();
+
+    PlayerModule.autosave();
+    PlayerModule.renderTopPanel();
+    CharacterModule.renderCharacterScreen();
     renderInventory();
-    MainUI.notify(`Экипировано: ${item.name}.`, 'success');
+    UIManager.showToast(`Экипировано: ${item.name}`, 'success');
+  }
+
+  function usePotion(index) {
+    const itemId = ensureInventory()[index];
+    const item = GameData.ITEMS[itemId];
+    if (!item || item.type !== 'potion') return;
+
+    if (item.heal) {
+      PlayerModule.heal(item.heal);
+      UIManager.showToast(`Восстановлено ${item.heal} HP`, 'success');
+    }
+    if (item.restoreEnergy) {
+      PlayerModule.restoreEnergy(item.restoreEnergy);
+      UIManager.showToast(`Восстановлено ${item.restoreEnergy} энергии`, 'info');
+    }
+
+    removeByIndex(index);
+    PlayerModule.renderTopPanel();
+    CharacterModule.renderCharacterScreen();
+    renderInventory();
   }
 
   function sell(index) {
-    const p = PlayerModule.getPlayer();
-    const item = GameData.ITEMS[p.inventory[index]];
-    const sellPrice = Math.round((item.price || 20) * 0.55);
-    p.inventory.splice(index, 1);
-    PlayerModule.addGold(sellPrice);
-    MainUI.notify(`Продано: ${item.name} за ${sellPrice} 🪙`, 'info');
-    PlayerModule.renderPanel();
+    const inv = ensureInventory();
+    const itemId = inv[index];
+    const item = GameData.ITEMS[itemId];
+    if (!item) return;
+    const income = Math.max(1, Math.round((item.price || 10) * 0.55));
+
+    removeByIndex(index);
+    PlayerModule.changeGold(income);
+    PlayerModule.renderTopPanel();
     renderInventory();
+    ShopModule.renderShop();
+    UIManager.showToast(`Продано: ${item.name} (+${income} 🪙)`, 'info');
   }
 
-  function renderInventory(filter = 'all') {
+  function matchFilter(item, filter) {
+    if (filter === 'all') return true;
+    if (filter === 'rare') return ['rare', 'epic', 'legendary'].includes(item.rarity);
+    return item.type === filter;
+  }
+
+  function renderInventory(filter = InventoryModule.currentFilter) {
+    InventoryModule.currentFilter = filter || 'all';
     const p = PlayerModule.getPlayer();
-    const wrapper = document.getElementById('inventoryGrid');
-    wrapper.innerHTML = '';
+    const list = UIManager.qs('inventoryList');
+    const empty = UIManager.qs('inventoryEmpty');
+    if (!list || !p) return;
 
-    p.inventory.forEach((itemId, index) => {
-      const item = GameData.ITEMS[itemId];
-      if (!item) return;
-      if (filter !== 'all' && item.type !== filter) return;
+    list.innerHTML = '';
+    const inv = ensureInventory();
+    const filtered = inv.map((id, index) => ({ id, index, item: GameData.ITEMS[id] })).filter((x) => x.item && matchFilter(x.item, InventoryModule.currentFilter));
 
-      const card = document.createElement('div');
-      card.className = `item-card ${rarityClass[item.rarity] || ''}`;
+    if (!filtered.length) {
+      empty?.classList.remove('hidden');
+      return;
+    }
+    empty?.classList.add('hidden');
+
+    filtered.forEach(({ item, index }) => {
+      const card = document.createElement('article');
+      card.className = `item-card ${RARITY_CLASS[item.rarity] || ''}`;
       card.innerHTML = `
-        <div class="item-top"><span>${item.icon}</span><strong>${item.name}</strong></div>
+        <div class="item-head">
+          <h4>${item.icon} ${item.name}</h4>
+          <span class="rarity-chip ${item.rarity}">${item.rarity}</span>
+        </div>
         <p>${item.description}</p>
-        <small>Редкость: ${item.rarity}</small>
-        <div class="item-actions"></div>
       `;
+      const actions = document.createElement('div');
+      actions.className = 'item-actions';
 
-      const actions = card.querySelector('.item-actions');
-      const deleteBtn = MainUI.makeButton('Удалить', 'danger', () => removeItemByIndex(index));
-      actions.appendChild(deleteBtn);
-
-      if (item.type === 'potion') actions.appendChild(MainUI.makeButton('Использовать', 'primary', () => usePotion(index)));
-      if (item.type === 'weapon' || item.type === 'armor') actions.appendChild(MainUI.makeButton('Экипировать', 'primary', () => equip(index)));
-      actions.appendChild(MainUI.makeButton('Продать', 'secondary', () => sell(index)));
-
-      wrapper.appendChild(card);
-    });
-
-    const eq = p.equipment;
-    document.getElementById('equipWeapon').textContent = eq.weapon ? GameData.ITEMS[eq.weapon].name : 'Нет';
-    document.getElementById('equipArmor').textContent = eq.armor ? GameData.ITEMS[eq.armor].name : 'Нет';
-  }
-
-  function bindFilters() {
-    document.querySelectorAll('[data-inv-filter]').forEach((el) => {
-      el.addEventListener('click', () => renderInventory(el.dataset.invFilter));
+      if (item.type === 'potion') actions.append(UIManager.makeButton('Использовать', 'primary', () => usePotion(index)));
+      if (getSlotByType(item.type)) actions.append(UIManager.makeButton('Экипировать', 'gold', () => equip(index)));
+      actions.append(UIManager.makeButton('Продать', 'secondary', () => sell(index)));
+      card.append(actions);
+      list.append(card);
     });
   }
 
-  return { addItem, renderInventory, bindFilters };
+  function bind() {
+    document.querySelectorAll('[data-inv-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-inv-filter]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderInventory(btn.dataset.invFilter);
+      });
+    });
+  }
+
+  const InventoryModule = {
+    currentFilter: 'all',
+    bind,
+    addItem,
+    renderInventory
+  };
+
+  return InventoryModule;
 })();

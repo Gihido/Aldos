@@ -1,152 +1,178 @@
-window.MainUI = (() => {
-  const screens = ['loadingScreen', 'menuScreen', 'authScreen', 'characterScreen', 'gameScreen'];
+window.CharacterModule = (() => {
+  function renderCharacterScreen() {
+    const p = PlayerModule.getPlayer();
+    if (!p) return;
+    const stats = PlayerModule.getComputedStats();
 
-  function showScreen(id) {
-    screens.forEach((screen) => document.getElementById(screen).classList.toggle('active', screen === id));
+    UIManager.safeSetText('charName', p.nickname);
+    UIManager.safeSetText('charClass', p.className);
+    UIManager.safeSetText('charLevel', `Lv.${p.level}`);
+    UIManager.safeSetText('charExp', `${p.exp} / ${PlayerModule.expToNextLevel()}`);
+    UIManager.safeSetText('charGold', `${p.gold} 🪙`);
+    UIManager.safeSetText('charStats', `⚔️ ${stats.minDamage}-${stats.maxDamage} • 🛡️ ${stats.defense} • ✨ ${(stats.critChance * 100).toFixed(0)}%`);
+
+    UIManager.safeSetText('eqWeapon', PlayerModule.getEquippedItem('weapon')?.name || 'Нет');
+    UIManager.safeSetText('eqArmor', PlayerModule.getEquippedItem('armor')?.name || 'Нет');
+    UIManager.safeSetText('eqAmulet', PlayerModule.getEquippedItem('amulet')?.name || 'Нет');
+    UIManager.safeSetText('eqRing', PlayerModule.getEquippedItem('ring')?.name || 'Нет');
   }
 
-  function notify(text, type = 'info') {
-    const root = document.getElementById('notificationStack');
-    const el = document.createElement('div');
-    el.className = `notify ${type}`;
-    el.textContent = text;
-    root.appendChild(el);
-    setTimeout(() => el.remove(), 3200);
+  function quickHeal() {
+    const p = PlayerModule.getPlayer();
+    if (!p) return;
+    const idx = p.inventory.findIndex((id) => GameData.ITEMS[id]?.type === 'potion' && GameData.ITEMS[id]?.heal);
+    if (idx === -1) {
+      UIManager.showToast('Нет зелья HP.', 'warning');
+      return;
+    }
+
+    const potion = GameData.ITEMS[p.inventory[idx]];
+    p.inventory.splice(idx, 1);
+    PlayerModule.heal(potion.heal || 0);
+    PlayerModule.renderTopPanel();
+    InventoryModule.renderInventory();
+    renderCharacterScreen();
+    UIManager.showToast(`Использовано ${potion.name}.`, 'success');
   }
 
-  function logEvent(text) {
-    const list = document.getElementById('eventLog');
-    const li = document.createElement('li');
-    li.textContent = `${new Date().toLocaleTimeString('ru-RU')}: ${text}`;
-    list.prepend(li);
-  }
-
-  function makeButton(text, variant, onClick, disabled = false) {
-    const btn = document.createElement('button');
-    btn.className = `btn ${variant}`;
-    btn.textContent = text;
-    btn.disabled = disabled;
-    btn.addEventListener('click', onClick);
-    return btn;
-  }
-
-  return { showScreen, notify, logEvent, makeButton };
+  return { renderCharacterScreen, quickHeal };
 })();
 
-(function initApp() {
-  const START_DELAY = 900;
-
-  setTimeout(() => {
-    MainUI.showScreen('menuScreen');
-
-    const existing = PlayerModule.loadPlayer();
-    if (existing) {
-      MainUI.notify(`С возвращением, ${existing.nickname}!`, 'info');
-    }
-  }, START_DELAY);
+(function bootstrap() {
+  setTimeout(() => UIManager.showScreen('menuScreen'), 850);
 
   bindMenu();
   bindAuth();
-  bindCharacterCreation();
-  bindBottomNav();
+  bindCharacterCreate();
+  bindGameNavigation();
 
-  CombatModule.bindActions();
-  ChestModule.bind();
-  ShopModule.bind();
+  LocationsModule.bind();
+  CombatModule.bind();
   ChatModule.bind();
-  InventoryModule.bindFilters();
+  InventoryModule.bind();
+  ChestModule.bind();
 
   setInterval(() => {
     if (PlayerModule.getPlayer()) {
       MultiplayerModule.updateOnlineStatus();
-      PlayerModule.savePlayer();
+      PlayerModule.autosave();
     }
   }, 15000);
 
   function bindMenu() {
-    document.getElementById('btnNewGame').addEventListener('click', () => MainUI.showScreen('authScreen'));
-    document.getElementById('btnContinue').addEventListener('click', () => {
-      const p = PlayerModule.loadPlayer();
-      if (!p) {
-        MainUI.notify('Сохранение не найдено. Создайте нового героя.', 'warn');
-        return MainUI.showScreen('authScreen');
+    UIManager.qs('newGameBtn')?.addEventListener('click', () => UIManager.showScreen('authScreen'));
+    UIManager.qs('continueBtn')?.addEventListener('click', () => {
+      const player = PlayerModule.loadPlayer();
+      if (!player) {
+        UIManager.showToast('Сохранение не найдено. Начните новую игру.', 'warning');
+        UIManager.showScreen('authScreen');
+        return;
       }
       enterGame();
     });
   }
 
   function bindAuth() {
-    document.getElementById('btnRegister').addEventListener('click', () => {
-      const user = document.getElementById('authUsername').value.trim();
-      const pass = document.getElementById('authPassword').value.trim();
-      if (!user || !pass) return MainUI.notify('Введите логин и пароль.', 'warn');
-      const res = PlayerModule.register(user, pass);
-      if (!res.ok) return MainUI.notify(res.message, 'danger');
-      MainUI.notify('Регистрация успешна. Теперь войдите.', 'success');
+    UIManager.qs('registerBtn')?.addEventListener('click', () => {
+      const login = UIManager.qs('authLogin')?.value?.trim();
+      const pass = UIManager.qs('authPassword')?.value?.trim();
+      const result = PlayerModule.register(login, pass);
+      UIManager.showToast(result.ok ? 'Регистрация успешна.' : result.message, result.ok ? 'success' : 'error');
     });
 
-    document.getElementById('btnLogin').addEventListener('click', () => {
-      const user = document.getElementById('authUsername').value.trim();
-      const pass = document.getElementById('authPassword').value.trim();
-      const res = PlayerModule.login(user, pass);
-      if (!res.ok) return MainUI.notify(res.message, 'danger');
+    UIManager.qs('loginBtn')?.addEventListener('click', () => {
+      const login = UIManager.qs('authLogin')?.value?.trim();
+      const pass = UIManager.qs('authPassword')?.value?.trim();
+      const result = PlayerModule.login(login, pass);
+      if (!result.ok) {
+        UIManager.showToast(result.message, 'error');
+        return;
+      }
 
-      if (PlayerModule.loadPlayer() && PlayerModule.getPlayer().accountName === user) {
+      const saved = PlayerModule.loadPlayer();
+      if (saved && saved.accountName === login) {
         enterGame();
       } else {
-        MainUI.showScreen('characterScreen');
+        UIManager.showScreen('characterCreateScreen');
       }
     });
   }
 
-  function bindCharacterCreation() {
-    const holder = document.getElementById('classCards');
+  function bindCharacterCreate() {
+    const classGrid = UIManager.qs('classGrid');
     Object.values(GameData.CLASSES).forEach((klass) => {
       const card = document.createElement('button');
       card.className = 'class-card';
       card.dataset.classId = klass.id;
       card.innerHTML = `<h4>${klass.icon} ${klass.name}</h4><p>${klass.description}</p>`;
       card.addEventListener('click', () => {
-        document.querySelectorAll('.class-card').forEach((c) => c.classList.remove('selected'));
+        document.querySelectorAll('.class-card').forEach((x) => x.classList.remove('selected'));
         card.classList.add('selected');
       });
-      holder.appendChild(card);
+      classGrid?.append(card);
     });
 
-    document.getElementById('btnCreateCharacter').addEventListener('click', () => {
-      const nickname = document.getElementById('characterNickname').value.trim();
+    UIManager.qs('createCharacterBtn')?.addEventListener('click', () => {
+      const nickname = UIManager.qs('heroName')?.value?.trim();
       const selected = document.querySelector('.class-card.selected');
-      if (!nickname || !selected) return MainUI.notify('Введите ник и выберите класс.', 'warn');
-      const ok = PlayerModule.createCharacter(nickname, selected.dataset.classId);
-      if (!ok) return MainUI.notify('Ошибка создания персонажа.', 'danger');
+      if (!selected) {
+        UIManager.showToast('Выберите класс.', 'warning');
+        return;
+      }
+      const result = PlayerModule.createCharacter(nickname, selected.dataset.classId);
+      if (!result.ok) {
+        UIManager.showToast(result.message, 'error');
+        return;
+      }
       enterGame();
     });
   }
 
-  function enterGame() {
-    MainUI.showScreen('gameScreen');
-    PlayerModule.renderPanel();
-    LocationsModule.renderLocations();
-    InventoryModule.renderInventory();
-    MultiplayerModule.listenOnlinePlayers();
-    MultiplayerModule.updateOnlineStatus();
-    ChatModule.render();
-  }
-
-  function bindBottomNav() {
-    const sections = document.querySelectorAll('.section');
-    document.querySelectorAll('[data-tab]').forEach((btn) => {
+  function bindGameNavigation() {
+    document.querySelectorAll('.bottom-nav button').forEach((btn) => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
-        sections.forEach((s) => s.classList.toggle('active', s.id === `${tab}Section`));
-        if (tab === 'chat') ChatModule.open();
-        if (tab === 'shop') {
-          const p = PlayerModule.getPlayer();
-          const loc = GameData.LOCATIONS.find((l) => l.id === p.locationId);
-          if (!loc.hasMerchant) return MainUI.notify('В этой локации нет торговца.', 'warn');
-          ShopModule.open();
-        }
+        UIManager.setActiveTab(tab);
+
+        if (tab === 'location') LocationsModule.renderLocationsScreen();
+        if (tab === 'character') CharacterModule.renderCharacterScreen();
+        if (tab === 'inventory') InventoryModule.renderInventory();
+        if (tab === 'chat') ChatModule.renderChat();
+        if (tab === 'shop') ShopModule.renderShop();
       });
     });
+
+    UIManager.qs('healBtn')?.addEventListener('click', CharacterModule.quickHeal);
+    UIManager.qs('openOnlineBtn')?.addEventListener('click', () => {
+      UIManager.setActiveTab('online');
+      MultiplayerModule.renderOnlineList();
+    });
+    UIManager.qs('openSettingsBtn')?.addEventListener('click', () => UIManager.setActiveTab('settings'));
+
+    UIManager.qs('backFromOnline')?.addEventListener('click', () => UIManager.setActiveTab('character'));
+    UIManager.qs('backFromSettings')?.addEventListener('click', () => UIManager.setActiveTab('character'));
+  }
+
+  function enterGame() {
+    const p = PlayerModule.loadPlayer();
+    if (!p) {
+      PlayerModule.recoverCorruptedSave();
+    }
+
+    UIManager.showScreen('gameScreen');
+    UIManager.setActiveTab('location');
+
+    PlayerModule.renderTopPanel();
+    CharacterModule.renderCharacterScreen();
+    LocationsModule.renderLocationsScreen();
+    InventoryModule.renderInventory();
+    ShopModule.renderShop();
+    ChatModule.setChannel('global');
+    ChatModule.renderChat();
+
+    MultiplayerModule.listenOnlinePlayers();
+    MultiplayerModule.updateOnlineStatus();
+
+    UIManager.showToast('Добро пожаловать в Тени Старого Королевства!', 'info');
   }
 })();

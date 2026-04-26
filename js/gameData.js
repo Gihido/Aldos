@@ -1,78 +1,116 @@
-// Центральный справочник игровых данных.
+// Данные игры: баланс, локации, предметы, монстры, сундуки.
 window.GameData = (() => {
+  const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary'];
+
   const CLASSES = {
     warrior: {
       id: 'warrior',
       name: 'Воин',
       icon: '⚔️',
-      description: 'Высокое здоровье, стабильный урон и крепкая защита.',
-      baseStats: { maxHp: 130, minDamage: 10, maxDamage: 16, critChance: 0.08, defense: 5, energy: 100 }
+      description: 'Много HP, средний урон, высокая защита.',
+      baseStats: { maxHp: 145, minDamage: 10, maxDamage: 16, critChance: 0.08, defense: 5, energy: 100 }
     },
     mage: {
       id: 'mage',
       name: 'Маг',
       icon: '🔮',
-      description: 'Сильные магические удары, но меньший запас здоровья.',
-      baseStats: { maxHp: 95, minDamage: 12, maxDamage: 20, critChance: 0.1, defense: 2, energy: 120 }
+      description: 'Меньше HP, сильная магическая атака.',
+      baseStats: { maxHp: 105, minDamage: 13, maxDamage: 21, critChance: 0.1, defense: 2, energy: 120 }
     },
     archer: {
       id: 'archer',
       name: 'Лучник',
       icon: '🏹',
-      description: 'Хороший баланс и высокий шанс критического удара.',
-      baseStats: { maxHp: 110, minDamage: 11, maxDamage: 17, critChance: 0.18, defense: 3, energy: 110 }
+      description: 'Средний HP, повышенный шанс критического удара.',
+      baseStats: { maxHp: 120, minDamage: 11, maxDamage: 18, critChance: 0.18, defense: 3, energy: 110 }
     }
   };
 
   const ITEMS = {
-    potion_small: { id: 'potion_small', name: 'Малое зелье HP', type: 'potion', rarity: 'common', heal: 30, price: 25, icon: '🧪', description: 'Восстанавливает 30 HP.' },
-    potion_medium: { id: 'potion_medium', name: 'Среднее зелье HP', type: 'potion', rarity: 'rare', heal: 60, price: 60, icon: '🧴', description: 'Восстанавливает 60 HP.' },
-    sword_novice: { id: 'sword_novice', name: 'Меч новичка', type: 'weapon', rarity: 'common', minDamageBonus: 2, maxDamageBonus: 4, price: 90, icon: '⚔️', description: 'Простой клинок для первых вылазок.' },
-    staff_arcane: { id: 'staff_arcane', name: 'Магический посох', type: 'weapon', rarity: 'epic', minDamageBonus: 4, maxDamageBonus: 7, critChanceBonus: 0.03, price: 180, icon: '🔮', description: 'Сфокусированная арканная мощь.' },
-    bow_hunter: { id: 'bow_hunter', name: 'Лук охотника', type: 'weapon', rarity: 'rare', minDamageBonus: 3, maxDamageBonus: 6, critChanceBonus: 0.06, price: 160, icon: '🏹', description: 'Увеличивает шанс точного критического выстрела.' },
-    armor_leather: { id: 'armor_leather', name: 'Кожаная броня', type: 'armor', rarity: 'common', maxHpBonus: 15, defenseBonus: 2, price: 80, icon: '🛡️', description: 'Базовая защита путешественника.' },
-    armor_king_guard: { id: 'armor_king_guard', name: 'Доспех королевской стражи', type: 'armor', rarity: 'legendary', maxHpBonus: 35, defenseBonus: 5, price: 320, icon: '🛡️', description: 'Реликвия старого королевства.' },
-    gem_shadow: { id: 'gem_shadow', name: 'Теневая гемма', type: 'material', rarity: 'epic', price: 220, icon: '💎', description: 'Редкий кристалл для ценных сделок.' }
+    potion_small: { id: 'potion_small', name: 'Малое зелье HP', type: 'potion', rarity: 'common', heal: 35, price: 25, icon: '🧪', description: 'Восстанавливает 35 HP.' },
+    potion_medium: { id: 'potion_medium', name: 'Среднее зелье HP', type: 'potion', rarity: 'rare', heal: 70, price: 60, icon: '🧴', description: 'Восстанавливает 70 HP.' },
+    potion_energy: { id: 'potion_energy', name: 'Зелье энергии', type: 'potion', rarity: 'rare', restoreEnergy: 35, price: 55, icon: '⚡', description: 'Восстанавливает 35 энергии.' },
+
+    sword_novice: { id: 'sword_novice', name: 'Меч новичка', type: 'weapon', rarity: 'common', minDamageBonus: 2, maxDamageBonus: 4, price: 90, icon: '⚔️', description: 'Надёжный клинок для первых вылазок.' },
+    staff_arcane: { id: 'staff_arcane', name: 'Магический посох', type: 'weapon', rarity: 'epic', minDamageBonus: 4, maxDamageBonus: 8, critChanceBonus: 0.03, price: 185, icon: '🔮', description: 'Сфокусированная магическая мощь.' },
+    bow_hunter: { id: 'bow_hunter', name: 'Лук охотника', type: 'weapon', rarity: 'rare', minDamageBonus: 3, maxDamageBonus: 6, critChanceBonus: 0.06, price: 165, icon: '🏹', description: 'Повышает шанс критического попадания.' },
+
+    armor_leather: { id: 'armor_leather', name: 'Кожаная броня', type: 'armor', rarity: 'common', maxHpBonus: 15, defenseBonus: 2, price: 80, icon: '🛡️', description: 'Лёгкая базовая защита.' },
+    armor_king_guard: { id: 'armor_king_guard', name: 'Доспех стражи', type: 'armor', rarity: 'legendary', maxHpBonus: 36, defenseBonus: 5, price: 330, icon: '🛡️', description: 'Доспех королевской стражи.' },
+
+    amulet_mist: { id: 'amulet_mist', name: 'Амулет Тумана', type: 'amulet', rarity: 'epic', critChanceBonus: 0.04, maxHpBonus: 10, price: 230, icon: '📿', description: 'Скрытая сила древних рун.' },
+    ring_ember: { id: 'ring_ember', name: 'Кольцо Углей', type: 'ring', rarity: 'rare', minDamageBonus: 2, maxDamageBonus: 3, price: 170, icon: '💍', description: 'Подпитывает атаки жаром.' },
+
+    gem_shadow: { id: 'gem_shadow', name: 'Теневая гемма', type: 'material', rarity: 'epic', price: 220, icon: '💎', description: 'Редкий ценный кристалл.' }
   };
 
   const MONSTERS = {
-    wolf: { id: 'wolf', name: 'Голодный волк', hp: 45, damage: [6, 11], rewardGold: [8, 16], rewardExp: [14, 24], lootTable: [{ itemId: 'potion_small', chance: 0.24 }] },
-    goblin: { id: 'goblin', name: 'Лесной гоблин', hp: 58, damage: [7, 13], rewardGold: [12, 22], rewardExp: [20, 30], lootTable: [{ itemId: 'sword_novice', chance: 0.07 }, { itemId: 'potion_small', chance: 0.27 }] },
-    skeleton: { id: 'skeleton', name: 'Костяной страж', hp: 76, damage: [10, 16], rewardGold: [18, 30], rewardExp: [26, 38], lootTable: [{ itemId: 'armor_leather', chance: 0.09 }, { itemId: 'potion_medium', chance: 0.19 }] },
-    mine_beast: { id: 'mine_beast', name: 'Шахтный зверь', hp: 96, damage: [12, 18], rewardGold: [28, 42], rewardExp: [34, 52], lootTable: [{ itemId: 'bow_hunter', chance: 0.06 }, { itemId: 'potion_medium', chance: 0.24 }] },
-    phantom_knight: { id: 'phantom_knight', name: 'Призрачный рыцарь', hp: 118, damage: [14, 23], rewardGold: [40, 58], rewardExp: [48, 70], lootTable: [{ itemId: 'staff_arcane', chance: 0.08 }, { itemId: 'gem_shadow', chance: 0.15 }] },
-    abyss_horror: { id: 'abyss_horror', name: 'Бездна чудовища', hp: 160, damage: [18, 29], rewardGold: [60, 90], rewardExp: [70, 105], lootTable: [{ itemId: 'armor_king_guard', chance: 0.06 }, { itemId: 'gem_shadow', chance: 0.28 }] }
+    wolf: { id: 'wolf', name: 'Голодный волк', hp: 48, damage: [6, 11], rewardGold: [8, 15], rewardExp: [14, 24], lootTable: [{ itemId: 'potion_small', chance: 0.24 }] },
+    goblin: { id: 'goblin', name: 'Лесной гоблин', hp: 60, damage: [7, 13], rewardGold: [12, 22], rewardExp: [20, 30], lootTable: [{ itemId: 'sword_novice', chance: 0.08 }, { itemId: 'potion_small', chance: 0.25 }] },
+    skeleton: { id: 'skeleton', name: 'Костяной страж', hp: 82, damage: [10, 16], rewardGold: [18, 30], rewardExp: [26, 40], lootTable: [{ itemId: 'armor_leather', chance: 0.09 }, { itemId: 'potion_medium', chance: 0.18 }] },
+    mine_beast: { id: 'mine_beast', name: 'Шахтный зверь', hp: 98, damage: [12, 19], rewardGold: [28, 43], rewardExp: [34, 54], lootTable: [{ itemId: 'bow_hunter', chance: 0.07 }, { itemId: 'potion_medium', chance: 0.2 }] },
+    phantom_knight: { id: 'phantom_knight', name: 'Призрачный рыцарь', hp: 124, damage: [14, 23], rewardGold: [40, 60], rewardExp: [48, 72], lootTable: [{ itemId: 'staff_arcane', chance: 0.08 }, { itemId: 'gem_shadow', chance: 0.15 }] },
+    abyss_horror: { id: 'abyss_horror', name: 'Бездна чудовища', hp: 170, damage: [18, 30], rewardGold: [60, 95], rewardExp: [74, 108], lootTable: [{ itemId: 'armor_king_guard', chance: 0.06 }, { itemId: 'amulet_mist', chance: 0.09 }, { itemId: 'ring_ember', chance: 0.12 }] }
   };
 
   const LOCATIONS = [
-    { id: 'dawn_village', name: 'Деревня Рассвета', icon: '🏘️', description: 'Безопасное поселение, где можно перевести дух.', minLevel: 1, background: 'linear-gradient(140deg, #221b2f 0%, #3b2e42 55%, #4f3b56 100%)', monsters: ['wolf'], chestChance: 0.15, hasMerchant: true },
-    { id: 'dark_forest', name: 'Тёмный лес', icon: '🌲', description: 'Густая чаща и шёпот древних духов.', minLevel: 2, background: 'linear-gradient(140deg, #111d1a 0%, #1d3329 55%, #2e4b3f 100%)', monsters: ['wolf', 'goblin'], chestChance: 0.22, hasMerchant: false },
-    { id: 'abandoned_mine', name: 'Заброшенная шахта', icon: '⛏️', description: 'Сырые тоннели скрывают опасных тварей.', minLevel: 3, background: 'linear-gradient(140deg, #151515 0%, #2c2a28 55%, #403a36 100%)', monsters: ['skeleton', 'mine_beast'], chestChance: 0.28, hasMerchant: true },
-    { id: 'king_ruins', name: 'Руины короля', icon: '🏰', description: 'Осколки великой эпохи и проклятые стражи.', minLevel: 5, background: 'linear-gradient(140deg, #1f1526 0%, #302045 55%, #4a2b66 100%)', monsters: ['phantom_knight', 'skeleton'], chestChance: 0.35, hasMerchant: false },
-    { id: 'monster_lair', name: 'Логово чудовища', icon: '🐉', description: 'Самое мрачное место, где выживают сильнейшие.', minLevel: 7, background: 'linear-gradient(140deg, #230f13 0%, #3f151f 55%, #632433 100%)', monsters: ['abyss_horror', 'phantom_knight'], chestChance: 0.44, hasMerchant: false }
+    {
+      id: 'dawn_village', name: 'Деревня Рассвета', icon: '🏘️', minLevel: 1,
+      description: 'Тихое поселение на границе диких земель.',
+      background: 'linear-gradient(145deg, #2a1d3a 0%, #4a345e 100%)',
+      // Опционально заменить на URL фонового изображения: './assets/backgrounds/dawn.jpg'
+      image: '',
+      monsters: ['wolf'], chestChance: 0.16, hasMerchant: true
+    },
+    {
+      id: 'dark_forest', name: 'Тёмный лес', icon: '🌲', minLevel: 2,
+      description: 'Густая чаща, где шёпот ветра похож на голоса.',
+      background: 'linear-gradient(145deg, #12251f 0%, #2f5b4e 100%)',
+      image: '', monsters: ['wolf', 'goblin'], chestChance: 0.22, hasMerchant: false
+    },
+    {
+      id: 'abandoned_mine', name: 'Заброшенная шахта', icon: '⛏️', minLevel: 3,
+      description: 'Каменные тоннели и эхо забытых каторжников.',
+      background: 'linear-gradient(145deg, #171718 0%, #3f3935 100%)',
+      image: '', monsters: ['skeleton', 'mine_beast'], chestChance: 0.28, hasMerchant: true
+    },
+    {
+      id: 'king_ruins', name: 'Руины короля', icon: '🏰', minLevel: 5,
+      description: 'Осколки трона и тени древних стражей.',
+      background: 'linear-gradient(145deg, #1e1532 0%, #4a2e63 100%)',
+      image: '', monsters: ['phantom_knight', 'skeleton'], chestChance: 0.35, hasMerchant: false
+    },
+    {
+      id: 'monster_lair', name: 'Логово чудовища', icon: '🐉', minLevel: 7,
+      description: 'Сердце мрака, где рождаются легенды.',
+      background: 'linear-gradient(145deg, #2b1016 0%, #652437 100%)',
+      image: '', monsters: ['abyss_horror', 'phantom_knight'], chestChance: 0.45, hasMerchant: false
+    }
   ];
 
   const CHESTS = {
     common: {
-      gold: [12, 40],
+      gold: [14, 44],
       itemDrops: [
         { itemId: 'potion_small', chance: 0.45 },
-        { itemId: 'sword_novice', chance: 0.18 },
-        { itemId: 'armor_leather', chance: 0.14 }
+        { itemId: 'potion_energy', chance: 0.2 },
+        { itemId: 'sword_novice', chance: 0.17 },
+        { itemId: 'armor_leather', chance: 0.12 }
       ]
     },
     rare: {
-      gold: [40, 95],
+      gold: [42, 105],
       itemDrops: [
-        { itemId: 'potion_medium', chance: 0.38 },
-        { itemId: 'bow_hunter', chance: 0.12 },
+        { itemId: 'potion_medium', chance: 0.36 },
+        { itemId: 'bow_hunter', chance: 0.13 },
         { itemId: 'staff_arcane', chance: 0.1 },
-        { itemId: 'gem_shadow', chance: 0.15 }
+        { itemId: 'amulet_mist', chance: 0.1 },
+        { itemId: 'gem_shadow', chance: 0.14 }
       ]
     }
   };
 
-  const MERCHANT_ITEMS = ['potion_small', 'potion_medium', 'sword_novice', 'armor_leather', 'staff_arcane', 'bow_hunter'];
+  const MERCHANT_ITEMS = ['potion_small', 'potion_medium', 'potion_energy', 'sword_novice', 'armor_leather', 'staff_arcane', 'bow_hunter', 'ring_ember'];
 
-  return { CLASSES, ITEMS, MONSTERS, LOCATIONS, CHESTS, MERCHANT_ITEMS };
+  return { RARITY_ORDER, CLASSES, ITEMS, MONSTERS, LOCATIONS, CHESTS, MERCHANT_ITEMS };
 })();
