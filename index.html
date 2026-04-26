@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Тени Старого Королевства</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="notificationStack"></div>
+
+  <section id="loadingScreen" class="screen active centered">
+    <h1>🌑 Тени Старого Королевства</h1>
+    <p>Загрузка древних хроник...</p>
+    <div class="loader"></div>
+  </section>
+
+  <section id="menuScreen" class="screen centered">
+    <h2>Главное меню</h2>
+    <button class="btn gold" id="btnContinue">Продолжить</button>
+    <button class="btn primary" id="btnNewGame">Новая игра</button>
+  </section>
+
+  <section id="authScreen" class="screen card-screen">
+    <h2>Регистрация / Вход</h2>
+    <input id="authUsername" placeholder="Логин" />
+    <input id="authPassword" placeholder="Пароль" type="password" />
+    <div class="row">
+      <button class="btn primary" id="btnRegister">Регистрация</button>
+      <button class="btn gold" id="btnLogin">Вход</button>
+    </div>
+  </section>
+
+  <section id="characterScreen" class="screen card-screen">
+    <h2>Создание персонажа</h2>
+    <input id="characterNickname" placeholder="Ник героя" />
+    <div id="classCards" class="class-grid"></div>
+    <button class="btn gold" id="btnCreateCharacter">Создать героя</button>
+  </section>
+
+  <section id="gameScreen" class="screen game-screen">
+    <header class="glass panel player-panel">
+      <h3 id="currentLocationTitle">🏘️ Деревня Рассвета</h3>
+      <p><strong id="playerNick">—</strong> <span id="playerClass">—</span></p>
+      <p id="playerStats">—</p>
+      <p id="playerGold">🪙 0</p>
+
+      <div class="bar-wrap"><span>HP <small id="hpLabel">0 / 0</small></span><div class="bar hp"><i id="hpFill"></i></div></div>
+      <div class="bar-wrap"><span>Энергия <small id="energyLabel">0 / 0</small></span><div class="bar energy"><i id="energyFill"></i></div></div>
+      <div class="bar-wrap"><span>XP <small id="xpLabel">0 / 0</small></span><div class="bar xp"><i id="xpFill"></i></div></div>
+    </header>
+
+    <main class="content">
+      <section id="locationSection" class="section active glass panel">
+        <h3>Локации</h3>
+        <div id="locationsList" class="location-grid"></div>
+        <h4>Игроки в текущей локации</h4>
+        <ul id="locationPlayersList" class="mini-list"></ul>
+      </section>
+
+      <section id="characterSection" class="section glass panel">
+        <h3>Персонаж</h3>
+        <p>Оружие: <strong id="equipWeapon">Нет</strong></p>
+        <p>Броня: <strong id="equipArmor">Нет</strong></p>
+        <h4>Журнал событий</h4>
+        <ul id="eventLog" class="mini-list"></ul>
+      </section>
+
+      <section id="inventorySection" class="section glass panel">
+        <h3>Инвентарь</h3>
+        <div class="row wrap">
+          <button class="btn secondary" data-inv-filter="all">Все</button>
+          <button class="btn secondary" data-inv-filter="weapon">Оружие</button>
+          <button class="btn secondary" data-inv-filter="armor">Броня</button>
+          <button class="btn secondary" data-inv-filter="potion">Зелья</button>
+        </div>
+        <div id="inventoryGrid" class="inventory-grid"></div>
+      </section>
+
+      <section id="chatSection" class="section glass panel">
+        <h3>Чат и Онлайн</h3>
+        <button class="btn primary" onclick="ChatModule.open()">💬 Открыть чат</button>
+        <h4>Игроки онлайн</h4>
+        <ul id="onlinePlayersList" class="mini-list"></ul>
+      </section>
+
+      <section id="shopSection" class="section glass panel">
+        <h3>Магазин</h3>
+        <p>Торговец доступен только в локациях с иконкой 🧙.</p>
+        <button class="btn gold" onclick="ShopModule.open()">🧙 Открыть торговца</button>
+      </section>
+    </main>
+
+    <nav class="bottom-nav glass">
+      <button data-tab="location">🌍 Локация</button>
+      <button data-tab="character">👤 Персонаж</button>
+      <button data-tab="inventory">🎒 Инвентарь</button>
+      <button data-tab="chat">💬 Чат</button>
+      <button data-tab="shop">🧙 Магазин</button>
+    </nav>
+  </section>
+
+  <div id="combatModal" class="modal">
+    <div class="modal-card glass">
+      <h3>⚔️ Бой</h3>
+      <div class="combat-cards">
+        <div class="combat-card">
+          <h4>Вы</h4>
+          <div class="bar hp"><i id="combatPlayerFill"></i></div>
+          <p id="combatPlayerHp">0 / 0</p>
+        </div>
+        <div class="combat-card" id="enemyCard">
+          <h4 id="combatEnemyName">Монстр</h4>
+          <div class="bar hp enemy"><i id="combatEnemyFill"></i></div>
+          <p id="combatEnemyHp">0 / 0</p>
+        </div>
+      </div>
+      <div class="row wrap">
+        <button class="btn primary" id="btnAttack">Атаковать</button>
+        <button class="btn gold" id="btnStrongAttack">Сильный удар</button>
+        <button class="btn secondary" id="btnDefend">Защита</button>
+        <button class="btn secondary" id="btnUsePotion">Зелье</button>
+        <button class="btn danger" id="btnRun">Сбежать</button>
+      </div>
+      <ul id="combatLog" class="mini-list combat-log"></ul>
+    </div>
+  </div>
+
+  <div id="chestModal" class="modal">
+    <div class="modal-card glass centered">
+      <div id="chestBox" class="chest-box">🎁</div>
+      <h3>Сундук открыт!</h3>
+      <p id="chestRewardText"></p>
+      <button class="btn gold" id="closeChestModal">Забрать награду</button>
+    </div>
+  </div>
+
+  <div id="shopModal" class="modal">
+    <div class="modal-card glass">
+      <h3>🧙 Торговец</h3>
+      <h4>Купить</h4>
+      <div id="shopBuyList" class="shop-list"></div>
+      <h4>Продать</h4>
+      <div id="shopSellList" class="shop-list"></div>
+      <button class="btn danger" id="closeShopModal">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="chatModal" class="modal">
+    <div class="modal-card glass">
+      <h3>💬 <span id="chatChannelLabel">Общий чат</span></h3>
+      <div class="row wrap">
+        <button class="btn secondary" id="btnGlobalChat">Общий</button>
+        <button class="btn secondary" id="btnLocationChat">Локация</button>
+      </div>
+      <div id="chatMessages" class="chat-messages"></div>
+      <div class="row">
+        <input id="chatInput" placeholder="Введите сообщение" />
+        <button class="btn gold" id="btnSendChat">Отправить</button>
+      </div>
+      <button class="btn danger" id="closeChatModal">Закрыть</button>
+    </div>
+  </div>
+
+  <script src="js/firebase-config.js"></script>
+  <script src="js/gameData.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/inventory.js"></script>
+  <script src="js/chest.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/locations.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
