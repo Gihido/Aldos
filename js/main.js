@@ -1,147 +1,132 @@
-window.CharacterModule = (() => {
-  function renderCharacterScreen() {
-    const p = PlayerModule.getPlayer();
-    if (!p) return;
-    const s = PlayerModule.getComputedStats();
-    UIManager.safeSetText('charName', p.nickname);
-    UIManager.safeSetText('charClass', p.className);
-    UIManager.safeSetText('charLevel', `Lv.${p.level}`);
-    UIManager.safeSetText('charExp', `${p.exp}/${PlayerModule.expToNextLevel()}`);
-    UIManager.safeSetText('charGold', `${p.gold} 🪙`);
-    UIManager.safeSetText('charStats', `⚔️ ${s.minDamage}-${s.maxDamage} • 🛡️ ${s.defense} • ✨ ${(s.critChance * 100).toFixed(0)}%`);
-    UIManager.safeSetText('eqWeapon', GameData.ITEMS[p.equipment.weapon]?.name || 'Нет');
-    UIManager.safeSetText('eqArmor', GameData.ITEMS[p.equipment.armor]?.name || 'Нет');
-    UIManager.safeSetText('eqAmulet', GameData.ITEMS[p.equipment.amulet]?.name || 'Нет');
-    UIManager.safeSetText('eqRing', GameData.ITEMS[p.equipment.ring]?.name || 'Нет');
+window.MainModule = (() => {
+  function init() {
+    setTimeout(() => UIManager.setScreen('menu'), 550);
+
+    UIManager.bindDrawer();
+    bindMenu();
+    bindAuth();
+    bindCreate();
+    bindCommonButtons();
+
+    InventoryModule.bind();
+    ShopModule.bind();
+    CombatModule.bind();
+    ChatModule.bind();
+    LeaderboardModule.bind();
+    SettingsModule.bind();
+
+    LocalServer.listenServerUpdate(() => {
+      if (!PlayerModule.getPlayer()) return;
+      OnlineModule.renderOnlineScreen();
+      LocationsModule.renderPlayersInCurrentLocation();
+      CombatModule.renderActiveBattles();
+      ChatModule.renderChat();
+      FriendsModule.renderFriendsScreen();
+      ClansModule.renderClanScreen();
+      LeaderboardModule.renderLeaderboard();
+    });
   }
 
-  return { renderCharacterScreen };
-})();
-
-(function init() {
-  setTimeout(() => UIManager.showScreen('menuScreen'), 700);
-
-  bindMenu();
-  bindAuth();
-  bindCreateHero();
-  bindBottomNav();
-  bindSideActions();
-
-  CombatModule.bind();
-  InventoryModule.bind();
-  LocationsModule.bind();
-  ChatModule.bind();
-  LeaderboardModule.bind();
-  SettingsModule.bind();
-
-  setInterval(() => {
-    if (!PlayerModule.getPlayer()) return;
-    OnlineModule.savePlayerOnline();
-    LeaderboardModule.updateLeaderboard();
-  }, 20000);
-
   function bindMenu() {
-    UIManager.qs('newGameBtn')?.addEventListener('click', () => UIManager.showScreen('authScreen'));
-    UIManager.qs('continueBtn')?.addEventListener('click', () => {
-      const p = PlayerModule.loadPlayer();
-      if (!p) return UIManager.showToast('Сохранение не найдено.', 'warning');
+    UIManager.qs('newGameBtn').onclick = () => UIManager.setScreen('auth');
+    UIManager.qs('continueBtn').onclick = () => {
+      if (!PlayerModule.loadPlayer()) return UIManager.showToast('Сохранение не найдено.', 'warning');
       enterGame();
-    });
+    };
   }
 
   function bindAuth() {
-    UIManager.qs('registerBtn')?.addEventListener('click', () => {
+    UIManager.qs('registerBtn').onclick = () => {
       const res = PlayerModule.register(UIManager.qs('authLogin').value.trim(), UIManager.qs('authPassword').value.trim());
-      UIManager.showToast(res.ok ? 'Регистрация успешна.' : res.message, res.ok ? 'success' : 'error');
-    });
+      UIManager.showToast(res.ok ? 'Аккаунт создан.' : res.message, res.ok ? 'success' : 'error');
+    };
 
-    UIManager.qs('loginBtn')?.addEventListener('click', () => {
+    UIManager.qs('loginBtn').onclick = () => {
       const res = PlayerModule.login(UIManager.qs('authLogin').value.trim(), UIManager.qs('authPassword').value.trim());
       if (!res.ok) return UIManager.showToast(res.message, 'error');
-
       const p = PlayerModule.loadPlayer();
-      if (p && p.accountName === UIManager.qs('authLogin').value.trim()) enterGame();
-      else UIManager.showScreen('characterCreateScreen');
-    });
+      if (p && p.account === UIManager.qs('authLogin').value.trim()) enterGame();
+      else UIManager.setScreen('create');
+    };
   }
 
-  function bindCreateHero() {
-    const grid = UIManager.qs('classGrid');
-    Object.values(GameData.CLASSES).forEach((c) => {
+  function bindCreate() {
+    const cards = UIManager.qs('classCards');
+    cards.innerHTML = '';
+    Object.values(GameData.CLASSES).forEach((cls) => {
       const card = document.createElement('button');
       card.className = 'class-card';
-      card.dataset.classId = c.id;
-      card.innerHTML = `<h4>${c.icon} ${c.name}</h4>`;
+      card.dataset.cls = cls.id;
+      card.innerHTML = `<h4>${cls.icon} ${cls.name}</h4><p>${cls.description}</p><small>HP ${cls.hp} • Урон ${cls.damage[0]}-${cls.damage[1]} • ${cls.feature}</small>`;
       card.onclick = () => {
         document.querySelectorAll('.class-card').forEach((x) => x.classList.remove('selected'));
         card.classList.add('selected');
       };
-      grid.append(card);
+      cards.append(card);
     });
 
-    UIManager.qs('createCharacterBtn')?.addEventListener('click', () => {
+    UIManager.qs('createPlayerBtn').onclick = () => {
       const selected = document.querySelector('.class-card.selected');
       if (!selected) return UIManager.showToast('Выберите класс.', 'warning');
-      const res = PlayerModule.createCharacter(UIManager.qs('heroName').value, selected.dataset.classId);
+      const res = PlayerModule.createPlayer(UIManager.qs('createName').value, selected.dataset.cls);
       if (!res.ok) return UIManager.showToast(res.message, 'error');
       enterGame();
-    });
+    };
   }
 
-  function bindBottomNav() {
-    document.querySelectorAll('.bottom-nav button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const tab = btn.dataset.tab;
-        UIManager.setActiveTab(tab);
+  function bindCommonButtons() {
+    UIManager.qs('addFriendBtn').onclick = () => {
+      FriendsModule.sendFriendRequestByCode(UIManager.qs('friendCodeInput').value.trim());
+      UIManager.qs('friendCodeInput').value = '';
+    };
 
-        if (tab === 'location') LocationsModule.renderLocationsScreen();
-        if (tab === 'battle') UIManager.setActiveTab('battle');
-        if (tab === 'inventory') InventoryModule.renderInventory();
-        if (tab === 'chat') ChatModule.listenChat('global');
-        if (tab === 'clan') ClansModule.renderClanScreen();
-        if (tab === 'leaderboard') LeaderboardModule.renderLeaderboard('level');
-        if (tab === 'settings') SettingsModule.loadSettings();
-      });
-    });
+    UIManager.qs('createClanBtn').onclick = ClansModule.createClan;
+    UIManager.qs('inviteClanBtn').onclick = () => ClansModule.inviteToClan(UIManager.qs('clanInviteInput').value.trim());
+    UIManager.qs('acceptClanInviteBtn').onclick = ClansModule.acceptClanInvite;
+    UIManager.qs('leaveClanBtn').onclick = ClansModule.leaveClan;
+    UIManager.qs('sendClanMsgBtn').onclick = ClansModule.sendClanMessage;
   }
 
-  function bindSideActions() {
-    UIManager.qs('openOnlineBtn')?.addEventListener('click', () => UIManager.setActiveTab('online'));
-    UIManager.qs('dailyChestBtn')?.addEventListener('click', () => ChestModule.openDailyChest());
-    UIManager.qs('clanChestBtn')?.addEventListener('click', () => ChestModule.openClanChest());
-    UIManager.qs('createClanBtn')?.addEventListener('click', () => ClansModule.createClan(UIManager.qs('clanNameInput').value, UIManager.qs('clanTagInput').value, UIManager.qs('clanDescInput').value));
-    UIManager.qs('inviteClanBtn')?.addEventListener('click', () => ClansModule.invitePlayerToClan(UIManager.qs('inviteClanInput').value));
-    UIManager.qs('leaveClanBtn')?.addEventListener('click', ClansModule.leaveClan);
-
-    UIManager.qs('partyAttackBtn')?.addEventListener('click', () => PartyCombatModule.playerBattleAction('attack'));
-    UIManager.qs('partyStrongBtn')?.addEventListener('click', () => PartyCombatModule.playerBattleAction('strong'));
-    UIManager.qs('partyDefBtn')?.addEventListener('click', () => PartyCombatModule.playerBattleAction('defend'));
-    UIManager.qs('partyPotionBtn')?.addEventListener('click', () => PartyCombatModule.playerBattleAction('potion'));
-    UIManager.qs('partySkillBtn')?.addEventListener('click', () => PartyCombatModule.playerBattleAction('skill'));
-    UIManager.qs('partyRunBtn')?.addEventListener('click', () => PartyCombatModule.playerBattleAction('run'));
-
-    UIManager.qs('openAdminBtn')?.addEventListener('click', AdminModule.renderAdminPanel);
-  }
-
-  async function enterGame() {
-    UIManager.showScreen('gameScreen');
+  function enterGame() {
+    UIManager.setScreen('game');
     UIManager.setActiveTab('location');
 
-    PlayerModule.renderTopPanel();
-    CharacterModule.renderCharacterScreen();
-    LocationsModule.renderLocationsScreen();
+    OnlineModule.init();
+    ChatModule.listenChat();
+    UIManager.renderPlayerHeader();
+    SettingsModule.apply();
+    renderCharacter();
+    LocationsModule.renderLocations();
     InventoryModule.renderInventory();
     ShopModule.renderShop();
+    FriendsModule.renderFriendsScreen();
+    ClansModule.renderClanScreen();
+    CombatModule.renderActiveBattles();
+    LeaderboardModule.renderLeaderboard('level');
 
-    await OnlineModule.initOnlineSystem();
-    MultiplayerModule.listenOnline();
-    PartyCombatModule.listenInvites();
-    ChatModule.listenChat('global');
-    LeaderboardModule.listenLeaderboard();
-    LeaderboardModule.updateLeaderboard();
-    RegenModule.startAutoRegen();
-
-    UIManager.qs('openAdminBtn')?.classList.toggle('hidden', !AdminModule.canUseAdmin());
-    UIManager.showToast(window.FirebaseConfig.USE_FIREBASE ? 'ONLINE_MODE активен' : 'OFFLINE_MODE активен', 'info');
+    UIManager.showToast(window.FirebaseConfig.USE_FIREBASE ? 'Режим: Firebase (future ready)' : 'Режим: локальный кооператив', 'info');
   }
+
+  function renderCharacter() {
+    const p = PlayerModule.getPlayer();
+    const s = PlayerModule.getComputedStats();
+    UIManager.qs('characterInfo').innerHTML = `${p.name} • ${p.className} • Lv.${p.level}<br>FriendCode: <strong>${p.friendCode}</strong>`;
+
+    const list = UIManager.qs('characterStats');
+    list.innerHTML = `
+      <li>HP: ${p.hp}/${s.maxHp}</li>
+      <li>Энергия: ${p.energy}/${p.maxEnergy}</li>
+      <li>Опыт: ${p.exp}/${PlayerModule.expToNextLevel()}</li>
+      <li>Золото: ${p.gold}</li>
+      <li>Урон: ${s.minDamage}-${s.maxDamage}</li>
+      <li>Защита: ${s.defense}</li>
+      <li>Победы / Поражения: ${p.wins} / ${p.losses}</li>
+      <li>Оружие: ${GameData.ITEMS[p.equipment.weapon]?.name || 'Нет'}</li>
+      <li>Броня: ${GameData.ITEMS[p.equipment.armor]?.name || 'Нет'}</li>
+    `;
+  }
+
+  return { init, renderCharacter };
 })();
+
+MainModule.init();

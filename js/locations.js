@@ -1,113 +1,66 @@
 window.LocationsModule = (() => {
-  let locationPlayers = [];
-  let unsub = null;
-
-  function getCurrentLocation() {
+  function current() {
     const p = PlayerModule.getPlayer();
-    return GameData.LOCATIONS.find((l) => l.id === p?.locationId) || GameData.LOCATIONS[0];
+    return GameData.LOCATIONS.find((l) => l.id === p.locationId) || GameData.LOCATIONS[0];
   }
 
-  function renderLocationsScreen() {
+  function renderLocations() {
     const p = PlayerModule.getPlayer();
-    const loc = getCurrentLocation();
-    if (!p || !loc) return;
+    const loc = current();
+    UIManager.qs('gameScreen').style.background = loc.bg;
+    UIManager.qs('locationTitle').textContent = `${loc.icon} ${loc.name}`;
+    UIManager.qs('locationDesc').textContent = `${loc.desc} • Рек. уровень ${loc.recLevel}`;
+    UIManager.qs('merchantInfo').textContent = loc.hasMerchant ? 'Торговец доступен.' : 'Торговец недоступен.';
 
-    UIManager.safeSetText('currentLocationName', `${loc.icon} ${loc.name}`);
-    UIManager.safeSetText('currentLocationDesc', loc.description);
-    UIManager.safeSetText('currentLocationLevel', `Требуемый уровень: ${loc.minLevel}`);
-    UIManager.safeSetText('merchantHint', loc.hasMerchant ? '🧙 Торговец доступен.' : 'Торговца нет.');
-    UIManager.qs('openChestBtn')?.classList.toggle('hidden', !ChestModule.hasChest(loc.id));
-
-    const root = UIManager.qs('locationsGrid');
-    root.innerHTML = '';
+    const list = UIManager.qs('locationCards');
+    list.innerHTML = '';
     GameData.LOCATIONS.forEach((l) => {
-      const locked = p.level < l.minLevel;
       const card = document.createElement('article');
+      const locked = p.level < l.recLevel;
       card.className = `location-card ${locked ? 'locked' : ''}`;
-      card.innerHTML = `<div class="loc-head"><h4>${l.icon} ${l.name}</h4><span>${locked ? `🔒 Lv.${l.minLevel}` : 'Открыта'}</span></div><p>${l.description}</p>`;
-      card.append(UIManager.makeButton('Перейти', locked ? 'disabled' : 'primary', () => goLocation(l.id), locked));
-      root.append(card);
+      card.innerHTML = `<h4>${l.icon} ${l.name}</h4><p>${l.desc}</p><small>Рек. уровень ${l.recLevel}</small>`;
+      card.append(UIManager.makeButton('Перейти', locked ? 'disabled' : 'primary', () => moveTo(l.id), locked));
+      list.append(card);
     });
 
-    listenLocationPlayers();
+    renderPlayersInCurrentLocation();
   }
 
-  function goLocation(locationId) {
+  function moveTo(id) {
     const p = PlayerModule.getPlayer();
-    const loc = GameData.LOCATIONS.find((x) => x.id === locationId);
-    if (!p || !loc) return;
-    if (p.level < loc.minLevel) return UIManager.showToast('Локация недоступна.', 'warning');
-
-    const prev = p.locationId;
-    if (!PlayerModule.setLocation(locationId)) return;
-    OnlineModule.updatePlayerLocation(locationId, prev);
-    PlayerModule.renderTopPanel();
-    renderLocationsScreen();
-    UIManager.showToast(`Переход в ${loc.name}`, 'info');
-  }
-
-  function searchAdventure() {
-    CombatModule.startCombat(getCurrentLocation().id);
+    const target = GameData.LOCATIONS.find((l) => l.id === id);
+    if (!target) return;
+    if (p.level < target.recLevel) return UIManager.showToast('Локация закрыта по уровню.', 'warning');
+    p.locationId = id;
+    PlayerModule.savePlayer();
+    LocalServer.setPlayerOnline();
+    renderLocations();
   }
 
   function renderPlayersInCurrentLocation() {
-    const list = UIManager.qs('playersInLocation');
-    if (!list) return;
+    const list = UIManager.qs('locationPlayers');
     list.innerHTML = '';
-
-    if (!locationPlayers.length) {
-      list.innerHTML = '<li>В локации никого нет.</li>';
+    const locId = PlayerModule.getPlayer().locationId;
+    const players = OnlineModule.getOnlinePlayers().filter((p) => p.locationId === locId);
+    if (!players.length) {
+      list.innerHTML = '<li>Никого рядом.</li>';
       return;
     }
 
-    locationPlayers.forEach((pl) => {
-      const row = document.createElement('li');
-      row.className = 'player-row';
-      row.innerHTML = `<div><strong>${pl.nickname}</strong> • Lv.${pl.level} • ${pl.className} • ${pl.clanId || 'без клана'} • ${pl.status}</div>`;
-      if (pl.userId !== OnlineModule.getCurrentUserId()) {
-        row.append(UIManager.makeButton('В бой', 'secondary', () => invitePlayerToBattle(pl.userId)));
-        row.append(UIManager.makeButton('В клан', 'secondary', () => ClansModule.invitePlayerToClan(pl.nickname)));
-        row.append(UIManager.makeButton('Профиль', 'gold', () => openPlayerProfile(pl.userId)));
+    players.forEach((pl) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<div><strong>${pl.nickname}</strong> • Lv.${pl.level} • ${pl.className} • ${pl.status}</div>`;
+      if (pl.playerId !== PlayerModule.getPlayer().playerId) {
+        li.append(UIManager.makeButton('В бой', 'secondary', () => CombatModule.invitePlayerToBattle(pl.playerId)));
       }
-      list.append(row);
-    });
-  }
-
-  function invitePlayerToBattle(targetPlayerId) {
-    PartyCombatModule.createBattleInvite(targetPlayerId);
-  }
-
-  async function openPlayerProfile(playerId) {
-    const online = await ServerAPI.get(`playersOnline/${playerId}`, null);
-    if (!online) return UIManager.showToast('Профиль недоступен.', 'warning');
-    UIManager.showModal(
-      `Профиль: ${online.nickname}`,
-      `<p>Класс: ${online.className}</p><p>Уровень: ${online.level}</p><p>Клан: ${online.clanId || '—'}</p><p>Статус: ${online.status}</p>`,
-      [{ label: 'Закрыть', type: 'secondary', onClick: UIManager.closeModal }]
-    );
-  }
-
-  function listenLocationPlayers() {
-    unsub?.();
-    const loc = getCurrentLocation();
-    unsub = OnlineModule.listenPlayersInLocation(loc.id, (players) => {
-      locationPlayers = players;
-      renderPlayersInCurrentLocation();
+      list.append(li);
     });
   }
 
   function bind() {
-    UIManager.qs('searchAdventureBtn')?.addEventListener('click', searchAdventure);
-    UIManager.qs('openChestBtn')?.addEventListener('click', () => ChestModule.openChest(`loc_${getCurrentLocation().id}`));
+    UIManager.qs('startAdventureBtn').onclick = () => CombatModule.startBattle(PlayerModule.getPlayer().locationId);
+    UIManager.qs('openChestBtn').onclick = () => ChestModule.openChest();
   }
 
-  return {
-    getCurrentLocation,
-    renderLocationsScreen,
-    renderPlayersInCurrentLocation,
-    invitePlayerToBattle,
-    openPlayerProfile,
-    listenLocationPlayers,
-    bind
-  };
+  return { current, renderLocations, bind, renderPlayersInCurrentLocation };
 })();

@@ -1,212 +1,120 @@
 window.ClansModule = (() => {
-  const roles = ['Участник', 'Офицер', 'Заместитель', 'Лидер'];
-
-  async function createClan(name, tag, description) {
+  function createClan() {
     const p = PlayerModule.getPlayer();
-    if (!p) return;
-    if (!name?.trim()) return UIManager.showToast('Введите название клана.', 'warning');
+    const name = UIManager.qs('clanCreateName').value.trim();
+    const tag = UIManager.qs('clanCreateTag').value.trim().toUpperCase();
+    const desc = UIManager.qs('clanCreateDesc').value.trim();
+    if (!name) return UIManager.showToast('Введите название клана.', 'warning');
+    if (p.clanId) return UIManager.showToast('Вы уже в клане.', 'warning');
 
-    const clanId = await ServerAPI.push('clans', {
-      name: name.trim(),
-      tag: (tag || 'TAG').trim().slice(0, 5).toUpperCase(),
-      description: (description || '').trim(),
-      ownerId: OnlineModule.getCurrentUserId(),
-      members: {
-        [OnlineModule.getCurrentUserId()]: { role: 'Лидер', nickname: p.nickname }
-      },
-      level: 1,
-      exp: 0,
-      createdAt: Date.now()
-    });
-
+    const state = LocalServer.getState();
+    const clanId = `clan_${Date.now()}`;
+    state.clanData.clans.push({ clanId, name, tag: tag || 'TAG', desc, leaderId: p.playerId, members: [p.playerId], messages: [] });
     p.clanId = clanId;
-    p.clanRole = 'Лидер';
-    PlayerModule.autosave();
-    UIManager.showToast('Клан создан.', 'success');
+    PlayerModule.savePlayer();
+    LocalServer.setState(state);
     renderClanScreen();
   }
 
-  async function invitePlayerToClan(playerName) {
+  function inviteToClan(identifier) {
     const p = PlayerModule.getPlayer();
-    if (!p?.clanId) return UIManager.showToast('Вы не в клане.', 'warning');
-    if (!['Лидер', 'Заместитель', 'Офицер'].includes(p.clanRole)) return UIManager.showToast('Недостаточно прав.', 'error');
+    if (!p.clanId) return UIManager.showToast('Сначала вступите в клан.', 'warning');
 
-    const online = Object.values((await ServerAPI.get('playersOnline', {})) || {});
-    const target = online.find((u) => u.nickname.toLowerCase() === String(playerName || '').toLowerCase());
-    if (!target) return UIManager.showToast('Игрок не найден онлайн.', 'error');
-    if (target.userId === OnlineModule.getCurrentUserId()) return UIManager.showToast('Нельзя пригласить себя.', 'warning');
+    const state = LocalServer.getState();
+    const clan = state.clanData.clans.find((c) => c.clanId === p.clanId);
+    if (!clan || clan.leaderId !== p.playerId) return UIManager.showToast('Приглашать может только лидер.', 'warning');
 
-    await ServerAPI.push('clanInvites', {
-      clanId: p.clanId,
-      fromId: OnlineModule.getCurrentUserId(),
-      toId: target.userId,
-      status: 'pending',
-      createdAt: Date.now()
-    });
+    const online = Object.values(state.playersOnline);
+    const target = online.find((x) => x.nickname.toLowerCase() === identifier.toLowerCase() || x.friendCode.toLowerCase() === identifier.toLowerCase());
+    if (!target) return UIManager.showToast('Игрок не найден.', 'warning');
 
-    UIManager.showToast('Приглашение в клан отправлено.', 'success');
+    state.clanData.invites.push({ id: `ci_${Date.now()}`, clanId: clan.clanId, fromId: p.playerId, toId: target.playerId, status: 'pending' });
+    LocalServer.setState(state);
+    UIManager.showToast('Клановое приглашение отправлено.', 'success');
   }
 
-  async function acceptClanInvite(inviteId) {
-    const invites = (await ServerAPI.get('clanInvites', [])) || [];
-    const inv = invites.find((x) => x.id === inviteId);
-    if (!inv) return;
-
-    const clans = (await ServerAPI.get('clans', [])) || [];
-    const clan = clans.find((x) => x.id === inv.clanId);
-    if (!clan) return;
-
+  function acceptClanInvite() {
     const p = PlayerModule.getPlayer();
-    clan.members[OnlineModule.getCurrentUserId()] = { role: 'Участник', nickname: p.nickname };
-    p.clanId = clan.id;
-    p.clanRole = 'Участник';
-    inv.status = 'accepted';
+    const state = LocalServer.getState();
+    const invite = state.clanData.invites.find((i) => i.toId === p.playerId && i.status === 'pending');
+    if (!invite) return UIManager.showToast('Нет приглашений.', 'info');
 
-    await ServerAPI.set('clans', clans);
-    await ServerAPI.set('clanInvites', invites);
-    PlayerModule.autosave();
+    const clan = state.clanData.clans.find((c) => c.clanId === invite.clanId);
+    if (!clan) return;
+    clan.members.push(p.playerId);
+    p.clanId = clan.clanId;
+    invite.status = 'accepted';
+    PlayerModule.savePlayer();
+    LocalServer.setState(state);
     renderClanScreen();
   }
 
-  async function declineClanInvite(inviteId) {
-    const invites = (await ServerAPI.get('clanInvites', [])) || [];
-    const inv = invites.find((x) => x.id === inviteId);
-    if (!inv) return;
-    inv.status = 'declined';
-    await ServerAPI.set('clanInvites', invites);
-  }
-
-  async function leaveClan() {
+  function leaveClan() {
     const p = PlayerModule.getPlayer();
-    if (!p?.clanId) return;
-    const clans = (await ServerAPI.get('clans', [])) || [];
-    const clan = clans.find((x) => x.id === p.clanId);
+    if (!p.clanId) return;
+    const state = LocalServer.getState();
+    const clan = state.clanData.clans.find((c) => c.clanId === p.clanId);
     if (!clan) return;
 
-    delete clan.members[OnlineModule.getCurrentUserId()];
+    clan.members = clan.members.filter((id) => id !== p.playerId);
+    if (!clan.members.length) state.clanData.clans = state.clanData.clans.filter((c) => c.clanId !== clan.clanId);
+    else if (clan.leaderId === p.playerId) clan.leaderId = clan.members[0];
+
     p.clanId = null;
-    p.clanRole = null;
-    await ServerAPI.set('clans', clans);
-    PlayerModule.autosave();
+    PlayerModule.savePlayer();
+    LocalServer.setState(state);
     renderClanScreen();
   }
 
-  async function kickClanMember(playerId) {
-    await changeMemberRole(playerId, null, true);
-  }
-
-  async function promoteClanMember(playerId) {
-    await changeRoleStep(playerId, +1);
-  }
-
-  async function demoteClanMember(playerId) {
-    await changeRoleStep(playerId, -1);
-  }
-
-  async function changeRoleStep(playerId, delta) {
+  function sendClanMessage() {
     const p = PlayerModule.getPlayer();
-    const clans = (await ServerAPI.get('clans', [])) || [];
-    const clan = clans.find((x) => x.id === p?.clanId);
-    if (!clan || p.clanRole !== 'Лидер') return;
-
-    const member = clan.members[playerId];
-    if (!member || member.role === 'Лидер') return;
-    const idx = Math.max(0, Math.min(roles.length - 1, roles.indexOf(member.role) + delta));
-    member.role = roles[idx];
-
-    await ServerAPI.set('clans', clans);
-    renderClanScreen();
-  }
-
-  async function changeMemberRole(playerId, role, remove = false) {
-    const p = PlayerModule.getPlayer();
-    const clans = (await ServerAPI.get('clans', [])) || [];
-    const clan = clans.find((x) => x.id === p?.clanId);
-    if (!clan || p.clanRole !== 'Лидер') return;
-    if (remove) delete clan.members[playerId];
-    else clan.members[playerId].role = role;
-    await ServerAPI.set('clans', clans);
-    renderClanScreen();
-  }
-
-  async function sendClanChatMessage() {
-    const p = PlayerModule.getPlayer();
-    if (!p?.clanId) return;
-    const input = UIManager.qs('clanChatInput');
-    const text = String(input?.value || '').trim().slice(0, 180);
+    if (!p.clanId) return;
+    const text = UIManager.qs('clanMessageInput').value.trim();
     if (!text) return;
 
-    await ServerAPI.push(`chat/clan/${p.clanId}/messages`, {
-      nickname: p.nickname,
-      text,
-      createdAt: Date.now()
-    });
-    input.value = '';
+    const state = LocalServer.getState();
+    const clan = state.clanData.clans.find((c) => c.clanId === p.clanId);
+    if (!clan) return;
+    clan.messages.push({ from: p.name, text: text.slice(0, 200), time: Date.now() });
+    LocalServer.setState(state);
+    UIManager.qs('clanMessageInput').value = '';
     renderClanScreen();
   }
 
-  async function renderClanScreen() {
+  function renderClanScreen() {
     const p = PlayerModule.getPlayer();
-    const root = UIManager.qs('clanBox');
-    if (!root) return;
+    const root = UIManager.qs('clanRoot');
+    const state = LocalServer.getState();
+    root.innerHTML = '';
 
-    if (!p?.clanId) {
+    if (!p.clanId) {
       root.innerHTML = '<p>Вы не состоите в клане.</p>';
+      const pending = state.clanData.invites.some((i) => i.toId === p.playerId && i.status === 'pending');
+      UIManager.qs('acceptClanInviteBtn').classList.toggle('hidden', !pending);
       return;
     }
 
-    const clans = (await ServerAPI.get('clans', [])) || [];
-    const clan = clans.find((x) => x.id === p.clanId);
-    if (!clan) {
-      root.innerHTML = '<p>Клан не найден.</p>';
-      return;
-    }
+    const clan = state.clanData.clans.find((c) => c.clanId === p.clanId);
+    if (!clan) return;
 
-    const members = Object.entries(clan.members || {});
-    root.innerHTML = `
-      <h4>[${clan.tag}] ${clan.name}</h4>
-      <p>${clan.description}</p>
-      <p>Уровень клана: ${clan.level} • XP: ${clan.exp}</p>
-      <div id="clanMembers"></div>
-      <div class="chat-input-row"><input id="clanChatInput" placeholder="Сообщение клану" /><button id="sendClanChatBtn" class="btn gold">Отправить</button></div>
-      <div id="clanChatBox" class="chat-box"></div>
-    `;
+    root.innerHTML = `<h4>[${clan.tag}] ${clan.name}</h4><p>${clan.desc}</p><p>Лидер: ${clan.leaderId}</p><h5>Участники</h5><ul id="clanMembersList" class="list-box"></ul><h5>Клановый чат</h5><div id="clanMessages" class="chat-box"></div>`;
 
-    const membersBox = UIManager.qs('clanMembers');
-    members.forEach(([id, m]) => {
+    const members = UIManager.qs('clanMembersList');
+    clan.members.forEach((id) => {
+      const online = OnlineModule.getOnlinePlayers().find((x) => x.playerId === id);
+      const li = document.createElement('li');
+      li.textContent = `${online?.nickname || id} ${id === clan.leaderId ? '(Лидер)' : '(Участник)'}`;
+      members.append(li);
+    });
+
+    const msgBox = UIManager.qs('clanMessages');
+    clan.messages.slice(-40).forEach((m) => {
       const row = document.createElement('div');
-      row.className = 'list-row';
-      row.innerHTML = `<span>${m.nickname} — ${m.role}</span>`;
-      if (p.clanRole === 'Лидер' && id !== OnlineModule.getCurrentUserId()) {
-        row.append(UIManager.makeButton('↑', 'secondary', () => promoteClanMember(id)));
-        row.append(UIManager.makeButton('↓', 'secondary', () => demoteClanMember(id)));
-        row.append(UIManager.makeButton('Kick', 'danger', () => kickClanMember(id)));
-      }
-      membersBox.append(row);
+      row.className = 'chat-bubble left';
+      row.innerHTML = `<header><strong>${m.from}</strong><small>${new Date(m.time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</small></header><p>${m.text}</p>`;
+      msgBox.append(row);
     });
-
-    const msgs = (await ServerAPI.get(`chat/clan/${p.clanId}/messages`, [])) || [];
-    const chat = UIManager.qs('clanChatBox');
-    msgs.slice(-30).forEach((m) => {
-      const div = document.createElement('div');
-      div.className = 'chat-row';
-      div.innerHTML = `<header><strong>${m.nickname}</strong><small>${new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</small></header><p>${m.text}</p>`;
-      chat.append(div);
-    });
-
-    UIManager.qs('sendClanChatBtn')?.addEventListener('click', sendClanChatMessage);
   }
 
-  return {
-    createClan,
-    invitePlayerToClan,
-    acceptClanInvite,
-    declineClanInvite,
-    leaveClan,
-    kickClanMember,
-    promoteClanMember,
-    demoteClanMember,
-    renderClanScreen,
-    sendClanChatMessage
-  };
+  return { createClan, inviteToClan, acceptClanInvite, leaveClan, renderClanScreen, sendClanMessage };
 })();

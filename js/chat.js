@@ -1,112 +1,87 @@
 window.ChatModule = (() => {
-  const MAX_LEN = 220;
-  let lastMessageAt = 0;
-  let currentChannel = 'global';
+  let activeChannel = 'global';
+  let lastSend = 0;
 
-  async function sendChatMessage(channel, text) {
+  function sendChatMessage(channel, text) {
     const p = PlayerModule.getPlayer();
     if (!p) return;
-    if (Date.now() < (p.muteUntil || 0)) return UIManager.showToast('Вы в муте.', 'error');
-
     const clean = String(text || '').trim();
     if (!clean) return;
-    if (clean.length > MAX_LEN) return UIManager.showToast('Слишком длинное сообщение.', 'warning');
-    if (Date.now() - lastMessageAt < 2000) return UIManager.showToast('Антиспам: 2 сек.', 'warning');
+    if (clean.length > 200) return UIManager.showToast('Сообщение слишком длинное.', 'warning');
+    if (Date.now() - lastSend < 1500) return UIManager.showToast('Антиспам 1.5 сек.', 'warning');
 
-    await ServerAPI.push(channelPath(channel), {
-      playerId: OnlineModule.getCurrentUserId(),
-      nickname: p.nickname,
+    const state = LocalServer.getState();
+    state.chatMessages[channel] = state.chatMessages[channel] || [];
+    state.chatMessages[channel].push({
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      senderId: p.playerId,
+      senderName: p.name,
       text: clean,
-      type: 'player',
-      createdAt: Date.now()
+      time: Date.now(),
+      type: 'player'
     });
-
-    lastMessageAt = Date.now();
+    LocalServer.setState(state);
+    lastSend = Date.now();
+    clearLocalChatIfTooLarge();
   }
 
-  function channelPath(channel) {
-    const locId = PlayerModule.getPlayer()?.locationId;
-    if (channel === 'location') return `chat/locations/${locId}/messages`;
-    if (channel === 'clan') return `chat/clan/${PlayerModule.getPlayer()?.clanId}/messages`;
-    if (channel === 'system') return 'chat/system/messages';
-    return 'chat/global/messages';
-  }
+  function renderChat(channel = activeChannel) {
+    activeChannel = channel;
+    document.querySelectorAll('[data-chat-channel]').forEach((b) => b.classList.toggle('active', b.dataset.chatChannel === channel));
 
-  function listenChat(channel) {
-    currentChannel = channel;
-    UIManager.safeSetText('chatChannelTitle', channel === 'location' ? 'Чат локации' : channel === 'clan' ? 'Чат клана' : 'Общий чат');
-
-    return ServerAPI.listen(channelPath(channel), (messages) => renderMessages(Array.isArray(messages) ? messages : []));
-  }
-
-  function renderMessages(messages) {
     const box = UIManager.qs('chatMessages');
-    if (!box) return;
     box.innerHTML = '';
+    const me = PlayerModule.getPlayer();
+    const state = LocalServer.getState();
+    const messages = (state.chatMessages[channel] || []).slice(-120);
 
-    messages.slice(-70).forEach((m) => {
-      const row = document.createElement('div');
-      row.className = 'chat-row';
-      const time = new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-      row.innerHTML = `<header><strong>${m.nickname}</strong><small>${time}</small></header><p>${escape(m.text)}</p>`;
-      box.append(row);
+    messages.forEach((m) => {
+      const bubble = document.createElement('div');
+      const side = m.type === 'system' ? 'center' : (m.senderId === me.playerId ? 'right' : 'left');
+      bubble.className = `chat-bubble ${side}`;
+      const time = new Date(m.time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      if (side === 'center') bubble.innerHTML = `<small>${m.text}</small>`;
+      else bubble.innerHTML = `<header><strong>${m.senderName}</strong><small>${time}</small></header><p>${escape(m.text)}</p>`;
+      box.append(bubble);
     });
+
     box.scrollTop = box.scrollHeight;
   }
 
-  async function sendPrivateMessage(playerName, text) {
-    const p = PlayerModule.getPlayer();
-    const online = Object.values((await ServerAPI.get('playersOnline', {})) || {});
-    const target = online.find((x) => x.nickname.toLowerCase() === String(playerName || '').toLowerCase());
-    if (!target) return UIManager.showToast('Игрок не найден.', 'warning');
+  function listenChat() {
+    LocalServer.listenServerUpdate(() => renderChat(activeChannel));
+  }
 
-    await ServerAPI.push(`chat/private/${target.userId}/messages`, {
-      from: p.nickname,
-      text: String(text || '').trim().slice(0, MAX_LEN),
-      createdAt: Date.now()
+  function clearLocalChatIfTooLarge() {
+    const state = LocalServer.getState();
+    ['global', 'location', 'friends', 'clan'].forEach((key) => {
+      if ((state.chatMessages[key] || []).length > 350) {
+        state.chatMessages[key] = state.chatMessages[key].slice(-250);
+      }
     });
-  }
-
-  async function clearChat(channel) {
-    await ServerAPI.set(channelPath(channel), []);
-  }
-
-  function mutePlayer(playerId, ms = 10 * 60 * 1000) {
-    const p = PlayerModule.getPlayer();
-    if (playerId === OnlineModule.getCurrentUserId()) {
-      p.muteUntil = Date.now() + ms;
-      PlayerModule.autosave();
-    }
-  }
-
-  function unmutePlayer(playerId) {
-    const p = PlayerModule.getPlayer();
-    if (playerId === OnlineModule.getCurrentUserId()) {
-      p.muteUntil = 0;
-      PlayerModule.autosave();
-    }
+    LocalServer.setState(state);
   }
 
   function bind() {
-    UIManager.qs('sendChatBtn')?.addEventListener('click', () => sendChatMessage(currentChannel, UIManager.qs('chatInput').value).then(() => {
+    UIManager.qs('sendChatBtn').onclick = () => {
+      sendChatMessage(activeChannel, UIManager.qs('chatInput').value);
       UIManager.qs('chatInput').value = '';
-    }));
-
-    document.querySelectorAll('[data-chat-channel]').forEach((btn) => {
-      btn.addEventListener('click', () => listenChat(btn.dataset.chatChannel));
-    });
-
-    UIManager.qs('chatInput')?.addEventListener('keydown', (e) => {
+    };
+    UIManager.qs('chatInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        sendChatMessage(currentChannel, UIManager.qs('chatInput').value);
+        sendChatMessage(activeChannel, UIManager.qs('chatInput').value);
         UIManager.qs('chatInput').value = '';
       }
     });
+
+    document.querySelectorAll('[data-chat-channel]').forEach((b) => {
+      b.onclick = () => renderChat(b.dataset.chatChannel);
+    });
   }
 
-  function escape(s) {
-    return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  function escape(str) {
+    return String(str).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   }
 
-  return { sendChatMessage, listenChat, sendPrivateMessage, clearChat, mutePlayer, unmutePlayer, bind };
+  return { sendChatMessage, renderChat, listenChat, clearLocalChatIfTooLarge, bind };
 })();
